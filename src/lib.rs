@@ -19,7 +19,7 @@ pub fn main() {
         let word = split.next().unwrap();
         let begin_offset = indexing::get_offset(split.next().unwrap());
         let length = indexing::get_offset(split.next().unwrap());
-        println!("'{}' starts at {} and has a length of {} bytes", word, begin_offset, length);
+        println!("'{}' starts at {} and has a length of {} bytes", word, begin_offset.unwrap(), length.unwrap());
     }
 }
 
