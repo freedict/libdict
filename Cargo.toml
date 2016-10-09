@@ -3,4 +3,5 @@ name = "dict"
 version = "0.1.0"
 authors = ["streicher <shumenda |at| gmx |dot| de>"]
 
-[dependencies]
+#[dependencies]
+#phf_macros = "*" # doesn't work
