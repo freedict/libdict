@@ -1,5 +1,5 @@
-// ToDo: the whole file needs proper error handling, more precisely, the functions should return
-// Options or results
+use std::collections::HashMap;
+use std::io::BufRead;
 
 
 fn get_base(input: char) -> Result<i64, String> {
@@ -22,5 +22,40 @@ pub fn get_offset(word: &str) -> Result<i64, String> {
         };
     }
     return Ok(index);
+}
+
+fn parse_line<'a>(line: String) -> Result<(String, i64, i64), String> {
+    let mut split = line.split("\t");
+    let word = try!(match split.next() {
+        Some(x) => Ok(x),
+        None => Err("Unable to find a \\t delimiter in this line")
+    });
+    // second column: offset into file
+    let start_offset = try!(match split.next(){
+        Some(x) => Ok(x),
+        None => Err("Unable to find a \\t delimiter in this line")
+    });
+    let start_offset = try!(get_offset(start_offset));
+
+    // get entry length
+    let length = try!(match split.next() {
+        Some(x) => Ok(x),
+        None => Err("Unable to find a second \\t delimiter in this line")
+    });
+    let length = try!(get_offset(length));
+
+    return Ok((word as String, start_offset, length));
+}
+
+pub fn parse_index<'a, B: BufRead>(br: B) -> Box<HashMap<&'a str, (i64, i64)>> {
+    let mut index = Box::new(HashMap::new());
+
+    for line in br.lines() {
+        let l = line.unwrap(); // ToDo: how to handle properly
+        let (word, start_offset, length) = parse_line(l).unwrap(); // toDo: handle properly
+        index.entry(word.clone()).or_insert((start_offset, length));
+    }
+
+    return index;
 }
 
