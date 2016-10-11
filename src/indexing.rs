@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::io::BufRead;
+use std::io::{BufRead, BufReader};
+use std::fs::File;
 
 
 fn get_base(input: char) -> Result<i64, String> {
@@ -47,15 +48,22 @@ fn parse_line(line: &str) -> Result<(String, i64, i64), String> {
     return Ok((word.to_string(), start_offset, length));
 }
 
-pub fn parse_index<B: BufRead>(br: B) -> Box<HashMap<String, (i64, i64)>> {
-    let mut index = Box::new(HashMap::new());
+pub fn parse_index<B: BufRead>(br: B) -> Result<HashMap<String, (i64, i64)>, String> {
+    let mut index = HashMap::new();
 
     for line in br.lines() {
-        let l = &line.unwrap(); // ToDo: how to handle properly
-        let (word, start_offset, length) = parse_line(l).unwrap(); // toDo: handle properly
-        *index.entry(word.clone()).or_insert((start_offset, length));
+        //let line = try!(line);
+        let line = line.unwrap();
+        let (word, start_offset, length) = try!(parse_line(&line));
+        index.entry(word.clone()).or_insert((start_offset, length));
     }
 
-    return index;
+    return Ok(index);
+}
+
+pub fn parse_index_from_file(filename: String) -> Result<HashMap<String, (i64, i64)>, String> {
+    let file = File::open(filename).unwrap();
+    let file = BufReader::new(&file);
+    parse_index(file)
 }
 
