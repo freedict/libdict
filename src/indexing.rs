@@ -24,10 +24,10 @@ pub fn get_offset(word: &str) -> Result<i64, String> {
     return Ok(index);
 }
 
-fn parse_line<'a>(line: String) -> Result<(String, i64, i64), String> {
+fn parse_line(line: &str) -> Result<(String, i64, i64), String> {
     let mut split = line.split("\t");
     let word = try!(match split.next() {
-        Some(x) => Ok(x),
+        Some(x) => Ok(x.to_string()),
         None => Err("Unable to find a \\t delimiter in this line")
     });
     // second column: offset into file
@@ -44,16 +44,16 @@ fn parse_line<'a>(line: String) -> Result<(String, i64, i64), String> {
     });
     let length = try!(get_offset(length));
 
-    return Ok((word as String, start_offset, length));
+    return Ok((word.to_string(), start_offset, length));
 }
 
-pub fn parse_index<'a, B: BufRead>(br: B) -> Box<HashMap<&'a str, (i64, i64)>> {
+pub fn parse_index<B: BufRead>(br: B) -> Box<HashMap<String, (i64, i64)>> {
     let mut index = Box::new(HashMap::new());
 
     for line in br.lines() {
-        let l = line.unwrap(); // ToDo: how to handle properly
+        let l = &line.unwrap(); // ToDo: how to handle properly
         let (word, start_offset, length) = parse_line(l).unwrap(); // toDo: handle properly
-        index.entry(word.clone()).or_insert((start_offset, length));
+        *index.entry(word.clone()).or_insert((start_offset, length));
     }
 
     return index;

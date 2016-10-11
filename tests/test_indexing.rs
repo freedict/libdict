@@ -3,6 +3,8 @@
 extern crate dict;
 use dict::indexing::*;
 
+use std::io::{BufRead, Cursor};
+
 ////////////////////////////////////////////////////////////////////////////////
 // Test single-character calculations
 ///////////////////////////////////////////////////////////////////////////////
@@ -51,3 +53,20 @@ fn test_that_big_offsets_work() {
 fn test_that_short_strings_work() {
     assert_eq!(dict::indexing::get_offset("c").unwrap(), 28);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Test parse_index
+////////////////////////////////////////////////////////////////////////////////
+
+fn mk_file(input: &str) -> Box<Cursor> {
+    let input = input.to_string().as_bytes();
+    // Cursor<&[u8]> implements BufRead already
+    Box::new(Cursor::new(input));
+}
+
+#[test]
+#[should_panic]
+fn test_that_invalid_line_causes_error() {
+    parse_index(*mk_file("blabla\nblublbub yo"));
+}
+
