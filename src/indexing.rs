@@ -4,7 +4,7 @@ use std::fs::File;
 
 
 fn get_base(input: char) -> Result<i64, String> {
-    return match input {
+    match input {
         'A' ... 'Z' => Ok((input as i64) - 65), // 'A' should become 0
         'a' ... 'z' => Ok((input as i64) - 71), // 'a' should become 26, ...
         '0' ... '9' => Ok((input as i64) + 4), // 0 should become 52
@@ -22,7 +22,7 @@ pub fn get_offset(word: &str) -> Result<i64, String> {
             Err(_) => return Err(format!("Invalid character {} at position {}", character, i)),
         };
     }
-    return Ok(index);
+    Ok(index)
 }
 
 fn parse_line(line: &str) -> Result<(String, i64, i64), String> {
@@ -45,7 +45,7 @@ fn parse_line(line: &str) -> Result<(String, i64, i64), String> {
     });
     let length = try!(get_offset(length));
 
-    return Ok((word.to_string(), start_offset, length));
+    Ok((word.to_string(), start_offset, length))
 }
 
 pub fn parse_index<B: BufRead>(br: B) -> Result<HashMap<String, (i64, i64)>, String> {
@@ -58,7 +58,7 @@ pub fn parse_index<B: BufRead>(br: B) -> Result<HashMap<String, (i64, i64)>, Str
         index.entry(word.clone()).or_insert((start_offset, length));
     }
 
-    return Ok(index);
+    Ok(index)
 }
 
 pub fn parse_index_from_file(filename: String) -> Result<HashMap<String, (i64, i64)>, String> {
