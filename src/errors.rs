@@ -1,6 +1,6 @@
 use std::error;
 
-// Error class, imported into main name space
+// Error type, imported into main name space
 #[derive(Debug)]
 pub enum DictError {
     /// the character at which the parser failed an optionally the line number
@@ -8,6 +8,10 @@ pub enum DictError {
     InvalidCharacter(char, Option<usize>, Option<usize>),
     /// not enough columns given for specified line
     MissingColumnInIndex(usize),
+    /// invalid file format, contains an explanation an an optional path to the
+    /// file with the invalid file format
+    InvalidFileFormat(String, Option<String>),
+    /// a wrapped io::Error
     IoError(::std::io::Error)
 }
 
@@ -27,6 +31,8 @@ impl ::std::fmt::Display for DictError {
                         }),
             DictError::MissingColumnInIndex(lnum) => write!(f, "line {}: not \
                     enough <tab>-separated columns found, expected 3", lnum),
+            DictError::InvalidFileFormat(explanation, path) =>
+                write!(f, "{}{}", path.unwrap_or(""), explanation)
         }
     }
 }
@@ -37,6 +43,8 @@ impl error::Error for DictError {
             DictError::InvalidCharacter(_, _, _) => "invalid character",
             DictError::MissingColumnInIndex(_) =>
                     "not enough <tab>-separated columnss given",
+            DictError::InvalidFileFormat(explanation, cause) => "could not \
+                    determine file format",
             DictError::IoError(ref err) => err.description(),
         }
     }
@@ -45,7 +53,7 @@ impl error::Error for DictError {
         match *self {
             DictError::IoError(ref err) => err.cause(),
             DictError::InvalidCharacter(_, _, _) => None,
-            DictError::MissingColumnInIndex(_) => None
+            DictError::InvalidFileFormat(_, _) => None
         }
     }
 }
