@@ -1,7 +1,10 @@
+use std::io;
 use std::io::{BufReader, Seek, SeekFrom, Read};
 use std::fs::File;
 
 use errors::DictError;
+
+pub static MAX_BYTES_FOR_BUFFER: u64 = 1048576; // no headword definition is larger than 1M
 
 /// .dict file format: either compressed or uncompressed
 pub enum DictFormat {
@@ -26,11 +29,18 @@ impl<B: Read + Seek> DictReader<B> {
     }
 
     pub fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError> {
+        if length > MAX_BYTES_FOR_BUFFER {
+            return Err(DictError::MemoryError);
+        }
         match self.dict_format {
             DictFormat::Raw => {
                 let _ = try!(self.dict_data.seek(SeekFrom::Start(start_offset)));
-                let mut read_data = Vec::with_capacity(length as usize);
-                let _ = try!(self.dict_data.read(read_data.as_mut_slice()));
+                let mut read_data = vec![0; length as usize];
+                let bytes_read = try!(self.dict_data.read(read_data.as_mut_slice())) as u64;
+                if bytes_read != length { // reading from end of file?
+                    return Err(DictError::IoError(io::Error::new(
+                                io::ErrorKind::UnexpectedEof, "seek beyond end of file")));
+                }
                 Ok(try!(String::from_utf8(read_data)))
             },
             _ => panic!("other formats than raw not implemented"),

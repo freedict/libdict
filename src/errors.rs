@@ -11,6 +11,8 @@ pub enum DictError {
     /// invalid file format, contains an explanation an an optional path to the
     /// file with the invalid file format
     InvalidFileFormat(String, Option<String>),
+    /// if there's not enough memory
+    MemoryError,
     /// a wrapped io::Error
     IoError(::std::io::Error),
     /// UTF8 error while reading data
@@ -22,6 +24,7 @@ impl ::std::fmt::Display for DictError {
         match *self {
             DictError::IoError(ref e) => e.fmt(f),
             DictError::Utf8Error(ref e) => e.fmt(f),
+            DictError::MemoryError => write!(f, "not enough memory available"),
             DictError::InvalidCharacter(ref ch, ref line, ref pos) =>
                 write!(f, "Invalid character {}{}{}", ch,
                         match *line {
@@ -44,6 +47,7 @@ impl error::Error for DictError {
     fn description(&self) -> &str {
         match *self {
             DictError::InvalidCharacter(_, _, _) => "invalid character",
+            DictError::MemoryError => "not enough memory available",
             DictError::MissingColumnInIndex(_) =>
                     "not enough <tab>-separated columnss given",
             DictError::InvalidFileFormat(ref _explanation, ref _path) => "could not \
@@ -62,7 +66,7 @@ impl error::Error for DictError {
     }
 }
 
-/// allow seamless coercion fromo::Error 
+/// allow seamless coercion from::Error 
 impl From<::std::io::Error> for DictError {
     fn from(err: ::std::io::Error) -> DictError {
         DictError::IoError(err)
