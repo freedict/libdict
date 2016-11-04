@@ -1,5 +1,5 @@
 pub mod indexing;
-pub mod DictReader;
+pub mod dictreader;
 mod errors;
 
 // make errors appear on top level

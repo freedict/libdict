@@ -12,27 +12,30 @@ pub enum DictError {
     /// file with the invalid file format
     InvalidFileFormat(String, Option<String>),
     /// a wrapped io::Error
-    IoError(::std::io::Error)
+    IoError(::std::io::Error),
+    /// UTF8 error while reading data
+    Utf8Error(::std::string::FromUtf8Error),
 }
 
 impl ::std::fmt::Display for DictError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
             DictError::IoError(ref e) => e.fmt(f),
-            DictError::InvalidCharacter(ch, line, pos) =>
+            DictError::Utf8Error(ref e) => e.fmt(f),
+            DictError::InvalidCharacter(ref ch, ref line, ref pos) =>
                 write!(f, "Invalid character {}{}{}", ch,
-                        match line {
+                        match *line {
                             Some(ln) => format!(" on line {}", ln),
                             _ => String::new() // ToDo: more leegant solution
                         },
-                        match pos {
+                        match *pos {
                             Some(pos) => format!(" at position {}", pos),
                             _ => String::new() // ToDo: more leegant solution
                         }),
-            DictError::MissingColumnInIndex(lnum) => write!(f, "line {}: not \
+            DictError::MissingColumnInIndex(ref lnum) => write!(f, "line {}: not \
                     enough <tab>-separated columns found, expected 3", lnum),
-            DictError::InvalidFileFormat(explanation, path) =>
-                write!(f, "{}{}", path.unwrap_or(""), explanation)
+            DictError::InvalidFileFormat(ref explanation, ref path) =>
+                write!(f, "{}{}", path.clone().unwrap_or_else(String::new), explanation)
         }
     }
 }
@@ -43,17 +46,18 @@ impl error::Error for DictError {
             DictError::InvalidCharacter(_, _, _) => "invalid character",
             DictError::MissingColumnInIndex(_) =>
                     "not enough <tab>-separated columnss given",
-            DictError::InvalidFileFormat(explanation, cause) => "could not \
+            DictError::InvalidFileFormat(ref _explanation, ref _path) => "could not \
                     determine file format",
             DictError::IoError(ref err) => err.description(),
+            DictError::Utf8Error(ref err) => err.description(),
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
             DictError::IoError(ref err) => err.cause(),
-            DictError::InvalidCharacter(_, _, _) => None,
-            DictError::InvalidFileFormat(_, _) => None
+            DictError::Utf8Error(ref err) => err.cause(),
+            _ => None,
         }
     }
 }
@@ -61,6 +65,13 @@ impl error::Error for DictError {
 /// allow seamless coercion fromo::Error 
 impl From<::std::io::Error> for DictError {
     fn from(err: ::std::io::Error) -> DictError {
-    DictError::IoError(err)
+        DictError::IoError(err)
     }
 }
+
+impl From<::std::string::FromUtf8Error> for DictError {
+    fn from(err: ::std::string::FromUtf8Error) -> DictError {
+        DictError::Utf8Error(err)
+    }
+}
+
