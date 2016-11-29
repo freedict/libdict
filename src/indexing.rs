@@ -57,7 +57,7 @@ pub fn parse_index<B: BufRead>(br: B) -> Result<HashMap<String, (u64, u64)>, Dic
     Ok(index)
 }
 
-pub fn parse_index_from_file(filename: String) -> Result<HashMap<String, (u64, u64)>, DictError> {
+pub fn parse_index_from_file(filename: &str) -> Result<HashMap<String, (u64, u64)>, DictError> {
     let file = File::open(filename).unwrap();
     let file = BufReader::new(&file);
     parse_index(file)
