@@ -1,6 +1,9 @@
-This is an attempt to provide an library implementation for reading the dict.dz
-format. It aims at providing efficient means to look up words in a dictionary in
-the dict format, using the .index file to speed up the lookup process.
+LibDict -- Read *.dict(.dz) dictionary files
+============================================
+
+This is an attempt to provide an library implementation for reading the
+dict(.dz) dictionary format. It aims at providing efficient means to look up
+search terms from a given dictionary.
 
 The plan is as follows:
 
@@ -10,10 +13,13 @@ The plan is as follows:
     -   allow lookup of words
     -   allow retrieving a certain number of words starting with a specific
         prefix
-3.  add caching support (cache words which have been looked up)
-4.  provide C API
+3.  add gzip support
+4.  add caching support (cache words which have been looked up)
+5.  provide C API
 
-The dict format is not officially documented. As a first step, a python
-implementation tries to re-engineer the format and a proper Rust implementation
-is derived from this.
+
+License
+-------
+
+Please see the file `LiCENSE.md` for more information.
 
