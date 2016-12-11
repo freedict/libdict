@@ -7,7 +7,7 @@ This software is
 
 This software is licensed under the terms of the Lesser GNU Public License,
 version 3, or at your option, any later version of the license. The full license
-text is below and has been taken from <https://www.gnu.org/licenses/lgpl-3.0.md.>.
+text is below and has been taken from <https://www.gnu.org/licenses/lgpl-3.0.md>.
 
 ## GNU LESSER GENERAL PUBLIC LICENSE
 
