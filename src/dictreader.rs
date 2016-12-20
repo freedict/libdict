@@ -20,18 +20,18 @@ pub trait DictReader {
 /// Raw Dict reader
 ///
 /// This reader can read uncompressed .dict files.
-pub struct DictReaderRaw {
-    dict_data: BufReader<File>,
+pub struct DictReaderRaw<B: Read + Seek> {
+    dict_data: B,
 }
 
-impl DictReaderRaw {
+impl<B: Read + Seek> DictReaderRaw<B> {
     /// Get a new DictReader from a BufReader.
-    pub fn new(dict_data: BufReader<File>) -> DictReaderRaw {
+    pub fn new(dict_data: B) -> DictReaderRaw<B> {
         DictReaderRaw { dict_data: dict_data }
     }
 }
 
-impl DictReader for DictReaderRaw {
+impl<B: Read + Seek> DictReader for DictReaderRaw<B> {
     fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError> {
         if length > MAX_BYTES_FOR_BUFFER {
             return Err(DictError::MemoryError);
@@ -48,8 +48,12 @@ impl DictReader for DictReaderRaw {
 }
 
 
-pub fn from_file(path: &str) -> Result<Box<DictReader>, DictError> {
-    let reader = BufReader::new(File::open(path)?);
-    Ok(Box::new(DictReaderRaw::new(reader)))
+pub fn load_dict(path: &str) -> Result<Box<DictReader>, DictError> {
+    if path.ends_with(".gz") {
+        panic!("unimplemented");
+    } else {
+        let reader = BufReader::new(File::open(path)?);
+        Ok(Box::new(DictReaderRaw::new(reader)))
+    }
 }
 

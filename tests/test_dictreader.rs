@@ -1,18 +1,21 @@
 #[cfg(test)]
 extern crate dict;
 
-use std::io::{Cursor, Read, Seek};
+use std::io::{Cursor};
 
 use dict::*;
+use dict::dictreader::*;
 
-fn mk_file(input: &str) -> Box<Cursor<String>> {
+type FakeFile = Cursor<String>;
+
+fn mk_file(input: &str) -> FakeFile {
     let input = input.to_string();
-    // Cursor<&[u8]> implements BufRead already
-    Box::new(Cursor::new(input))
+    // Cursor<&[u8]> implements Read and Seek
+    Cursor::new(input)
 }
 
-fn mk_dict<B: Read + Seek>(x: B) -> dictreader::DictReader<B> {
-    dictreader::DictReader::new(x, dictreader::DictFormat::Raw)
+fn mk_dict(x: FakeFile) -> dictreader::DictReaderRaw<FakeFile> {
+    dictreader::DictReaderRaw::new(x)
 }
 
 #[test]
