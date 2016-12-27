@@ -1,6 +1,6 @@
 use std::error;
 
-// Error type, imported into main name space
+/// Error type, representing the errors which can be returned by the libdict library.
 #[derive(Debug)]
 pub enum DictError {
     /// the character at which the parser failed an optionally the line number

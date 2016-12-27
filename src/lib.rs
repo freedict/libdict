@@ -1,3 +1,5 @@
+extern crate byteorder;
+
 pub mod dictreader;
 pub mod errors;
 pub mod indexing;
