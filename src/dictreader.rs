@@ -61,7 +61,8 @@ impl<B: Read + Seek> DictReader for DictReaderRaw<B> {
 
 pub fn load_dict(path: &str) -> Result<Box<DictReader>, DictError> {
     if path.ends_with(".gz") {
-        panic!("unimplemented");
+        let reader = File::open(path)?;
+        Ok(Box::new(DictReaderDz::new(reader)?))
     } else {
         let reader = BufReader::new(File::open(path)?);
         Ok(Box::new(DictReaderRaw::new(reader)))
@@ -121,6 +122,9 @@ impl<B: Read + Seek> DictReaderDz<B> {
         }
     
         let length_subfield = LittleEndian::read_u16(&fextra[2..4]);
+        assert_eq!(length_subfield, xlen - 4, "the length of the subfield \
+                   should be the same as the fextra field, ignoring the \
+                   additional length information and the file format identification");
         let subf_version = LittleEndian::read_u16(&fextra[4..6]);
         if subf_version != 1 {
              return Err(DictError::InvalidFileFormat("Unimplemented dictzip \
@@ -166,16 +170,20 @@ impl<B: Read + Seek> DictReaderDz<B> {
             buffered_dzdict.seek(SeekFrom::Current(2))?;
         }
     
+        // save length of each compressed chunk
         let mut chunk_offsets = Vec::with_capacity(chunk_count as usize);
+        // save position of last compressed byte (this is NOT EOF, could be followed by CRC checksum)
         let mut offset_in_compressed = buffered_dzdict.seek(SeekFrom::Current(0))? as usize;
-        // iterate over each 2nd byte (u16)
-        for index in (0..length_subfield).filter(|i| (i%2)==0) {
-            let index = (index as usize) + 10; // first 10 bytes in fextra are header
-            let compressed_len = LittleEndian::read_u16(&fextra[index..(index + 2)]) as usize;
+        // after the various header bytes parsed above, the list of chunk lengths can be found (slice for easier indexing)
+        let chunks_from_header = &fextra[10usize..(10 + chunk_count * 2) as usize];
+
+        // iterate over each 2nd byte, parse u16
+        for index in (0..chunks_from_header.len()).filter(|i| (i%2)==0) {
+            let index = index as usize;
+            let compressed_len = LittleEndian::read_u16(&chunks_from_header[index..(index + 2)]) as usize;
             chunk_offsets.push(offset_in_compressed);
             offset_in_compressed += compressed_len;
         }
-
    
         assert_eq!(chunk_offsets.len() as u16, chunk_count, "The read number of compressed chunks in \
                 the .dz file must be equivalent to the number of chunks actually found in the file.\n");
@@ -220,17 +228,19 @@ impl<B: Read + Seek> DictReader for DictReaderDz<B> {
             data.push(self.inflate(definition)?);
         };
 
-
         // cut definition, convert to string
         let cut_front = start_offset as usize % self.uchunk_length;
+        // join the chunks to one vector, only keeping the content of the definition
         let data = match data.len() {
             0 => panic!(),
             1 => data[0][cut_front .. cut_front + length as usize].to_vec(),
             n => {
                 let mut tmp = data[0][cut_front..].to_vec();
+                // first vec has been inserted into tmp, therefore skip first and last chunk, too
                 for text in data.iter().skip(1).take(n-2) {
                     tmp.extend_from_slice(text);
                 }
+                // add last chunk to tmp, omitting stuff after word definition end
                 let remaining_bytes = (length as usize + cut_front) % self.uchunk_length;
                 tmp.extend_from_slice(&data[n-1][..remaining_bytes]);
                 tmp
