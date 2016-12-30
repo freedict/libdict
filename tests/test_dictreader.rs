@@ -81,14 +81,14 @@ fn test_files_with_incorrect_file_id_are_detected() {
 
 #[test]
 fn test_files_with_correct_file_id_work() {
-    let file = load_resource("foo-bar.dict.dz");
+    let file = load_resource("lat-deu.dict.dz");
     DictReaderDz::new(file).unwrap();
 }
 
 #[test]
 #[should_panic]
 fn test_gzip_files_without_fextra_panic() {
-    let mut rsrc = load_resource("foo-bar.dict.dz");
+    let mut rsrc = load_resource("lat-deu.dict.dz");
     let mut data = Vec::new();
     rsrc.read_to_end(&mut data).unwrap();
     // reset flags field to 0
@@ -96,11 +96,82 @@ fn test_gzip_files_without_fextra_panic() {
     let data = Cursor::new(data);
     DictReaderDz::new(data).unwrap();
 }
-// gz files without fextra are reported
-// files with too short fextra, what happens
-// file with invalid si1si2 report error
-// invalid fextra extension version is detected
-// chunk count and number length of XLEN field to accomodate chunk offsets must match (line 135)
-// file name is ignored, if specified
-// ignore comment if comment given
-    
+
+#[test]
+#[should_panic]
+fn test_that_file_with_invalid_si_bytes_reporged() {
+    // si1si2 are the identificationfor the dictzip extension
+    let mut rsrc = load_resource("lat-deu.dict.dz");
+    let mut data = Vec::new();
+    rsrc.read_to_end(&mut data).unwrap();
+    // reset flags field to 0
+    data[12] = 0;
+    data[13] = 0;
+    let data = Cursor::new(data);
+    DictReaderDz::new(data).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn test_gzip_with_invalid_version_num_are_reported() {
+    // the dictzip format specifies a field called "VER"
+    let mut rsrc = load_resource("lat-deu.dict.dz");
+    let mut data = Vec::new();
+    rsrc.read_to_end(&mut data).unwrap();
+    // reset version field to 0
+    data[16] = 0;
+    data[17] = 0;
+    let data = Cursor::new(data);
+    DictReaderDz::new(data).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn test_mismatching_subfield_length_and_fextra_length_is_reported() {
+    // the "FEXTRA" length (also called XLEN in the specification) contains the additional header
+    // information  for the dictzip format. This field has a header on its own and hence it is
+    // necessary to check whether both match and whether non-matching field lengths are detected
+    // the dictzip format specifies a field called "VER"
+    let mut rsrc = load_resource("lat-deu.dict.dz");
+    let mut data = Vec::new();
+    rsrc.read_to_end(&mut data).unwrap();
+    // reset flags field to 0
+    data[14] = 0;
+    data[15] = 0;
+    let data = Cursor::new(data);
+    DictReaderDz::new(data).unwrap();
+}
+
+#[test]
+#[should_panic]
+fn test_chunk_count_may_not_be_0() {
+    // the "FEXTRA" length (also called XLEN in the specification) contains the additional header
+    // information  for the dictzip format. This field has a header on its own and hence it is
+    // necessary to check whether both match and whether non-matching field lengths are detected
+    // the dictzip format specifies a field called "VER"
+    let mut rsrc = load_resource("lat-deu.dict.dz");
+    let mut data = Vec::new();
+    rsrc.read_to_end(&mut data).unwrap();
+    // reset chunk count to 0
+    data[20] = 0;
+    data[21] = 0;
+    let data = Cursor::new(data);
+    DictReaderDz::new(data).unwrap();
+}
+
+
+#[test]
+#[should_panic]
+fn test_chunk_count_and_xlen_must_match() {
+    // doc see above
+    let mut rsrc = load_resource("lat-deu.dict.dz");
+    let mut data = Vec::new();
+    rsrc.read_to_end(&mut data).unwrap();
+    // reset chunk count to 0
+    data[20] = 8;
+    data[21] = 9;
+    let data = Cursor::new(data);
+    DictReaderDz::new(data).unwrap();
+}
+
+

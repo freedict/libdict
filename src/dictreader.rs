@@ -250,4 +250,23 @@ impl<B: Read + Seek> DictReader for DictReaderDz<B> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn load_resource(name: &str) -> ::std::fs::File {
+        let mut path = ::std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.push("tests");
+        path.push("assets");
+        path.push(name);
+        ::std::fs::File::open(path).unwrap()
+    }
+
+    #[test]
+    fn test_number_of_parsed_chunks_is_correct() {
+        let rsrc = load_resource("lat-deu.dict.dz");
+        let d = DictReaderDz::new(rsrc).unwrap();
+        assert_eq!(d.chunk_offsets.len(), 7);
+    }
+}
 
