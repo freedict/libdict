@@ -197,3 +197,27 @@ fn test_retrieval_of_a_word_which_exists_works() {
     assert!(word.starts_with("mater"));
 }
 
+#[test]
+fn test_that_word_from_first_chunk_works() {
+    let dictdz = get_asset_path("lat-deu.dict.dz");
+    let index = get_asset_path("lat-deu.index");
+    let mut dict = load_dictionary(&dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let word = dict.lookup("amo").unwrap();
+    assert!(word.starts_with("amo"));
+}
+
+#[test]
+fn test_lookup_into_last_chunk_works() {
+    let dictdz = get_asset_path("lat-deu.dict.dz");
+    let index = get_asset_path("lat-deu.index");
+    let mut dict = load_dictionary(&dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let word = dict.lookup("vultus").unwrap();
+    assert!(word.starts_with("vultus"));
+}
+
+
+// ToDo:
+// defs. wrapping around chunk borders are parsed correctly
+// file with and without a orig. file name in header is parsed properly
+// file with and with comment is parsed properly
+// file with CRC is parsed correctly
