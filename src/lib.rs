@@ -22,13 +22,13 @@ pub struct Dictionary {
 }
 
 impl Dictionary {
-    pub fn lookup(&mut self, word: &str) -> Option<String> {
-        let &(start, length) = get!(self.word_index.get(word));
-        self.dict_reader.fetch_definition(start, length).ok()
+    pub fn lookup(&mut self, word: &str) -> Result<String, errors::DictError> {
+        let &(start, length) = self.word_index.get(word).ok_or(errors::DictError::WordNotFound(word.into()))?;
+        self.dict_reader.fetch_definition(start, length)
     }
 }
 
-/// Load dictionary from given input
+/// Load dictionary from given paths
 ///
 /// A dictionary is made of an index and a dictionary (data) file, both are opened from the given
 /// input file names. Gzipped files will be handled automatically. ToDo: nimplemented
@@ -38,4 +38,5 @@ pub fn load_dictionary(content_fn: &str, index_fn: &str) -> Result<Dictionary,
     let index = indexing::parse_index_from_file(index_fn)?;
     Ok(Dictionary { dict_reader: dreader, word_index: index })
 }
+
 

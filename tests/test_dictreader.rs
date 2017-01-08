@@ -10,12 +10,17 @@ use dict::dictreader::*;
 
 type StringFile = Cursor<String>;
 
-// load test resource from tests/assets
-fn load_resource(name: &str) -> File {
+fn get_asset_path(fname: &str) -> PathBuf {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests");
     path.push("assets");
-    path.push(name);
+    path.push(fname);
+    path
+}
+
+// load test resource from tests/assets
+fn load_resource(name: &str) -> File {
+    let path = get_asset_path(name);
     File::open(path).unwrap()
 }
 
@@ -174,4 +179,21 @@ fn test_chunk_count_and_xlen_must_match() {
     DictReaderDz::new(data).unwrap();
 }
 
+#[test]
+fn test_retrieval_of_a_word_which_doesnt_exist_yields_error() {
+    let dictdz = get_asset_path("lat-deu.dict.dz");
+    let index = get_asset_path("lat-deu.index");
+    let mut dict = load_dictionary(&dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    assert!(dict.lookup("testtesttest").is_err());
+}
+
+#[test]
+fn test_retrieval_of_a_word_which_exists_works() {
+    let dictdz = get_asset_path("lat-deu.dict.dz");
+    let index = get_asset_path("lat-deu.index");
+    let mut dict = load_dictionary(&dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let word = dict.lookup("mater");
+    let word = word.unwrap();
+    assert!(word.starts_with("mater"));
+}
 

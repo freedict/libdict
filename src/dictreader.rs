@@ -1,5 +1,5 @@
 use byteorder::*;
-use flate2::read::DeflateDecoder;
+use flate2;
 use std::fs::File;
 use std::io;
 use std::io::{BufReader, BufRead, Cursor, Read, Seek, SeekFrom};
@@ -58,9 +58,9 @@ impl<B: Read + Seek> DictReader for DictReaderRaw<B> {
     }
 }
 
-
+// ToDo: doc
 pub fn load_dict(path: &str) -> Result<Box<DictReader>, DictError> {
-    if path.ends_with(".gz") {
+    if path.ends_with(".dz") {
         let reader = File::open(path)?;
         Ok(Box::new(DictReaderDz::new(reader)?))
     } else {
@@ -68,6 +68,7 @@ pub fn load_dict(path: &str) -> Result<Box<DictReader>, DictError> {
         Ok(Box::new(DictReaderRaw::new(reader)))
     }
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // gzip handling
@@ -83,11 +84,12 @@ pub struct DictReaderDz<B: Read + Seek> {
     /// length of an uncompressed chunk
     uchunk_length: usize,
     /// end of compressed data in file
-    end_of_compressed: usize,
+    end_of_header: usize,
     /// offsets in file where a new compressed chunk starts
     chunk_offsets: Vec<usize>
 }
 
+#[derive(Debug)]
 struct Chunk {
     offset: usize,
     length: usize,
@@ -115,7 +117,7 @@ impl<B: Read + Seek> DictReaderDz<B> {
         // read FEXTRA data
         let mut fextra = vec![0u8; xlen as usize];
         buffered_dzdict.read(&mut fextra)?;
-    
+
         if fextra[0..2] != ['R' as u8, 'A' as u8] {
             return Err(DictError::InvalidFileFormat("No dictzip info found in FEXTRA \
                     header (behind XLEN, in SI1SI2 fields)".into(), None));
@@ -154,26 +156,26 @@ impl<B: Read + Seek> DictReaderDz<B> {
         }
     
         // if file name bit set, seek beyond the 0-terminated file name, we don't care
-        if (flags & GZ_FNAME) == 1 {
+        if (flags & GZ_FNAME) != 0 {
             let mut tmp = Vec::new();
             buffered_dzdict.read_until('\0' as u8, &mut tmp)?;
         }
     
         // seek past comment, if any
-        if (flags & GZ_COMMENT) == 1 {
+        if (flags & GZ_COMMENT) != 0 {
             let mut tmp = Vec::new();
             buffered_dzdict.read_until('\0' as u8, &mut tmp)?;
         }
     
         // skip CRC stuff, 2 bytes
-        if (flags & GZ_FHCRC) == 1 {
+        if (flags & GZ_FHCRC) != 0 {
             buffered_dzdict.seek(SeekFrom::Current(2))?;
         }
     
         // save length of each compressed chunk
         let mut chunk_offsets = Vec::with_capacity(chunk_count as usize);
         // save position of last compressed byte (this is NOT EOF, could be followed by CRC checksum)
-        let mut offset_in_compressed = buffered_dzdict.seek(SeekFrom::Current(0))? as usize;
+        let mut end_of_header = buffered_dzdict.seek(SeekFrom::Current(0))? as usize;
         // after the various header bytes parsed above, the list of chunk lengths can be found (slice for easier indexing)
         let chunks_from_header = &fextra[10usize..(10 + chunk_count * 2) as usize];
 
@@ -181,8 +183,8 @@ impl<B: Read + Seek> DictReaderDz<B> {
         for index in (0..chunks_from_header.len()).filter(|i| (i%2)==0) {
             let index = index as usize;
             let compressed_len = LittleEndian::read_u16(&chunks_from_header[index..(index + 2)]) as usize;
-            chunk_offsets.push(offset_in_compressed);
-            offset_in_compressed += compressed_len;
+            chunk_offsets.push(end_of_header);
+            end_of_header += compressed_len;
         }
    
         assert_eq!(chunk_offsets.len() as u16, chunk_count, "The read number of compressed chunks in \
@@ -190,7 +192,7 @@ impl<B: Read + Seek> DictReaderDz<B> {
     
         Ok(DictReaderDz { dzdict: buffered_dzdict.into_inner(),
                 chunk_offsets: chunk_offsets,
-                end_of_compressed: offset_in_compressed,
+                end_of_header: end_of_header,
                 uchunk_length: uchunk_length as usize })
     }
 
@@ -202,7 +204,7 @@ impl<B: Read + Seek> DictReaderDz<B> {
         for id in start_chunk..(end_chunk + 1) {
             let chunk_length = match self.chunk_offsets.get(id+1) {
                 Some(next) => next - self.chunk_offsets[id],
-                None => self.end_of_compressed - self.chunk_offsets[id],
+                None => self.end_of_header - self.chunk_offsets[id],
             };
             chunks.push(Chunk { offset: self.chunk_offsets[id], length: chunk_length });
         }
@@ -210,20 +212,29 @@ impl<B: Read + Seek> DictReaderDz<B> {
         Ok(chunks)
     }
 
+    // inflate a dictdz chunk
     fn inflate(&self, data: Vec<u8>) -> Result<Vec<u8>, DictError> {
-        let mut decoder = DeflateDecoder::new(Cursor::new(data));
-        let mut decoded = Vec::with_capacity(self.uchunk_length);
-        decoder.read_exact(&mut decoded)?;
+        let mut decoder = flate2::Decompress::new(false);
+        let mut decoded = vec![0u8; self.uchunk_length];
+        decoder.decompress(data.as_slice(), decoded.as_mut_slice(), flate2::Flush::None).unwrap();
         Ok(decoded)
     }
 }
 
 impl<B: Read + Seek> DictReader for DictReaderDz<B> {
     fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError> {
+        if length > MAX_BYTES_FOR_BUFFER {
+            return Err(DictError::MemoryError);
+        }
         let mut data = Vec::new();
         for chunk in self.get_chunks_for(start_offset, length)? {
-            self.dzdict.seek(SeekFrom::Start(chunk.offset as u64))?;
-            let mut definition = Vec::with_capacity(chunk.length);
+            let pos = self.dzdict.seek(SeekFrom::Start(chunk.offset as u64))?;
+            if pos != (chunk.offset as u64) {
+                return Err(DictError::IoError(io::Error::new(io::ErrorKind::Other, format!(
+                        "attempted to seek to {} but new position is {}",
+                        chunk.offset, pos))));
+            }
+            let mut definition = vec![0u8; chunk.length];
             self.dzdict.read_exact(&mut definition)?;
             data.push(self.inflate(definition)?);
         };

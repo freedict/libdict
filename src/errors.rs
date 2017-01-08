@@ -13,6 +13,8 @@ pub enum DictError {
     InvalidFileFormat(String, Option<String>),
     /// if there's not enough memory
     MemoryError,
+    /// if the word is not in the index
+    WordNotFound(String),
     /// a wrapped io::Error
     IoError(::std::io::Error),
     /// UTF8 error while reading data
@@ -25,6 +27,7 @@ impl ::std::fmt::Display for DictError {
             DictError::IoError(ref e) => e.fmt(f),
             DictError::Utf8Error(ref e) => e.fmt(f),
             DictError::MemoryError => write!(f, "not enough memory available"),
+            DictError::WordNotFound(ref word) => write!(f, "Word not found: {}", word),
             DictError::InvalidCharacter(ref ch, ref line, ref pos) =>
                 write!(f, "Invalid character {}{}{}", ch,
                         match *line {
@@ -48,6 +51,7 @@ impl error::Error for DictError {
         match *self {
             DictError::InvalidCharacter(_, _, _) => "invalid character",
             DictError::MemoryError => "not enough memory available",
+            DictError::WordNotFound(_) => "word not found",
             DictError::MissingColumnInIndex(_) =>
                     "not enough <tab>-separated columnss given",
             DictError::InvalidFileFormat(ref _explanation, ref _path) => "could not \
