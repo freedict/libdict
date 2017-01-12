@@ -6,6 +6,7 @@ pub mod errors;
 pub mod indexing;
 
 use self::dictreader::DictReader;
+use self::indexing::Index;
 
 use std::collections::HashMap;
 
@@ -32,11 +33,15 @@ impl Dictionary {
 ///
 /// A dictionary is made of an index and a dictionary (data) file, both are opened from the given
 /// input file names. Gzipped files will be handled automatically. ToDo: nimplemented
-pub fn load_dictionary(content_fn: &str, index_fn: &str) -> Result<Dictionary,
+pub fn load_dictionary_from_file(content_fn: &str, index_fn: &str) -> Result<Dictionary,
             errors::DictError> {
     let dreader = dictreader::load_dict(content_fn)?;
     let index = indexing::parse_index_from_file(index_fn)?;
     Ok(Dictionary { dict_reader: dreader, word_index: index })
 }
 
+/// load dictionary from a given dict reader
+pub fn load_dictionary(content: Box<DictReader>, index: Index) -> Dictionary {
+    Dictionary { dict_reader: content, word_index: index }
+}
 

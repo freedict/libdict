@@ -183,7 +183,7 @@ fn test_chunk_count_and_xlen_must_match() {
 fn test_retrieval_of_a_word_which_doesnt_exist_yields_error() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary(&dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
     assert!(dict.lookup("testtesttest").is_err());
 }
 
@@ -191,7 +191,7 @@ fn test_retrieval_of_a_word_which_doesnt_exist_yields_error() {
 fn test_retrieval_of_a_word_which_exists_works() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary(&dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
     let word = dict.lookup("mater");
     let word = word.unwrap();
     assert!(word.starts_with("mater"));
@@ -201,7 +201,7 @@ fn test_retrieval_of_a_word_which_exists_works() {
 fn test_that_word_from_first_chunk_works() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary(&dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
     let word = dict.lookup("amo").unwrap();
     assert!(word.starts_with("amo"));
 }
@@ -210,14 +210,68 @@ fn test_that_word_from_first_chunk_works() {
 fn test_lookup_into_last_chunk_works() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary(&dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
     let word = dict.lookup("vultus").unwrap();
     assert!(word.starts_with("vultus"));
 }
 
+#[test]
+fn test_that_definitions_wrapping_around_chunk_border_are_extracted_correctly() {
+    let dictdz = get_asset_path("lat-deu.dict.dz");
+    let index = get_asset_path("lat-deu.index");
+    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    // for the above dictionary, the chunk (or block) length of each uncompressed chunk is 58315;
+    // exactly there, the definition circumfero is split into two pieces:
+    let word = dict.lookup("circumfero").unwrap();
+    assert!(word.starts_with("circumfero"));
+    // last word from definition must be present, too
+    assert!(word.ends_with("herumtreiben\n"));
+}
 
-// ToDo:
-// defs. wrapping around chunk borders are parsed correctly
-// file with and without a orig. file name in header is parsed properly
-// file with and with comment is parsed properly
-// file with CRC is parsed correctly
+#[test]
+fn test_files_with_comment_is_parsed_correctly() {
+    // file in assets has no comment, so add one
+    let mut rsrc = load_resource("lat-deu.dict.dz");
+    let mut data = Vec::new();
+    rsrc.read_to_end(&mut data).unwrap();
+    // set comment bit to 1
+    data[3] |= dictreader::GZ_COMMENT;
+    // add comment _after_file name; the header itself is for this particular file 36 bytes + 13
+    // bytes file name (byte 13 is 0-byte)
+    let mut newdata: Vec<u8> = Vec::with_capacity(data.len() - 13);
+    newdata.extend(&data[0..49]);
+    // "h", "i", " ", "t", "h", "e", "r", "e"
+    newdata.extend(vec![104u8, 105u8, 32u8, 116u8, 104u8, 101u8, 114u8, 101u8, 0u8]);
+    newdata.extend(&data[49..]);
+
+    let data = dict::dictreader::DictReaderDz::new(Cursor::new(newdata)).unwrap();
+    let index = dict::indexing::parse_index_from_file(get_asset_path("lat-deu.index").to_str().unwrap()).unwrap();
+    let mut dict = dict::load_dictionary(Box::new(data), index);
+    let word = dict.lookup("mater");
+    let word = word.unwrap();
+    assert!(word.starts_with("mater"));
+}
+
+#[test]
+fn test_file_without_file_name_is_parsed_correctly() {
+    let mut rsrc = load_resource("lat-deu.dict.dz");
+    let mut data = Vec::new();
+    rsrc.read_to_end(&mut data).unwrap();
+    // reset fname bit to 0
+    data[3] &= !dictreader::GZ_FNAME; // flags byte of gz header
+    // remove file name from file; there are various fields in the gz header, which I won't repeat;
+    // together with the bytes in fextra (listing 7 compressed chunks), the file name starts at
+    // position 36. If you want to check the maths, have a look at src/dictreader.rs. The file name
+    // is 13 bytes long, so these need to be extracted:
+    let mut newdata: Vec<u8> = Vec::with_capacity(data.len() - 13);
+    newdata.extend(&data[0..36]);
+    newdata.extend(&data[49..]);
+
+    let data = dict::dictreader::DictReaderDz::new(Cursor::new(newdata)).unwrap();
+    let index = dict::indexing::parse_index_from_file(get_asset_path("lat-deu.index").to_str().unwrap()).unwrap();
+    let mut dict = dict::load_dictionary(Box::new(data), index);
+    let word = dict.lookup("mater");
+    let word = word.unwrap();
+    assert!(word.starts_with("mater"));
+}
+

@@ -5,6 +5,7 @@ use std::fs::File;
 use errors::DictError;
 use errors::DictError::*;
 
+pub type Index = HashMap<String, (u64, u64)>;
 
 /// Get the assigned number for a character
 /// If the character was unknown, an empty Err(()) is returned.

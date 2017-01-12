@@ -2,7 +2,7 @@ use byteorder::*;
 use flate2;
 use std::fs::File;
 use std::io;
-use std::io::{BufReader, BufRead, Cursor, Read, Seek, SeekFrom};
+use std::io::{BufReader, BufRead, Read, Seek, SeekFrom};
 
 use errors::DictError;
 
@@ -10,11 +10,12 @@ use errors::DictError;
 /// translation
 pub static MAX_BYTES_FOR_BUFFER: u64 = 1048576; // no headword definition is larger than 1M
 
+// ToDo: doc
 /// Flags for the GZ header to query for certain peroperties:
-static GZ_FEXTRA: u8 = 0b00000100; // fextra bit, additional field with information about gzip chunk size
-static GZ_FNAME: u8   = 0b00001000; // indicates whether a file name is contained in the archive
-static GZ_COMMENT: u8 = 0b00010000; // ndicates, whether a comment is present
-static GZ_FHCRC: u8   = 0b00000010; // indicate whether a CRC checksum is present
+pub static GZ_FEXTRA: u8 = 0b00000100; // fextra bit, additional field with information about gzip chunk size
+pub static GZ_FNAME: u8   = 0b00001000; // indicates whether a file name is contained in the archive
+pub static GZ_COMMENT: u8 = 0b00010000; // ndicates, whether a comment is present
+pub static GZ_FHCRC: u8   = 0b00000010; // indicate whether a CRC checksum is present
 
 
 /// .dict file format: either compressed or uncompressed
@@ -23,7 +24,6 @@ static GZ_FHCRC: u8   = 0b00000010; // indicate whether a CRC checksum is presen
 /// This type abstracts from the underlying seek operations required for lookup
 /// of headwords and provides easy methods to search for a word given a certain
 /// offset. It can parse both compressed and uncompressed .dict files.
-/// ToDo: dict.gz
 pub trait DictReader {
     fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError>;
 }
@@ -83,7 +83,7 @@ pub struct DictReaderDz<B: Read + Seek> {
     dzdict: B,
     /// length of an uncompressed chunk
     uchunk_length: usize,
-    /// end of compressed data in file
+    /// end of gz header, beginning of compressed data
     end_of_header: usize,
     /// offsets in file where a new compressed chunk starts
     chunk_offsets: Vec<usize>
