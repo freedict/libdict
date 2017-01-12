@@ -11,33 +11,33 @@ use std::io::Cursor;
 
 #[test]
 fn test_that_uppercase_letters_get_correct_number() {
-    assert_eq!(dict::indexing::get_offset("A").unwrap(), 0);
-    assert_eq!(dict::indexing::get_offset("M").unwrap(), 12);
-    assert_eq!(dict::indexing::get_offset("Z").unwrap(), 25);
+    assert_eq!(dict::indexing::decode_number("A").unwrap(), 0);
+    assert_eq!(dict::indexing::decode_number("M").unwrap(), 12);
+    assert_eq!(dict::indexing::decode_number("Z").unwrap(), 25);
 }
 
 #[test]
 fn test_that_lowercase_letters_get_correct_number() {
-     assert_eq!(dict::indexing::get_offset("a").unwrap(), 26);
-    assert_eq!(dict::indexing::get_offset("m").unwrap(), 38);
-    assert_eq!(dict::indexing::get_offset("z").unwrap(), 51);
+     assert_eq!(dict::indexing::decode_number("a").unwrap(), 26);
+    assert_eq!(dict::indexing::decode_number("m").unwrap(), 38);
+    assert_eq!(dict::indexing::decode_number("z").unwrap(), 51);
 }
 
 #[test]
 fn test_that_characters_get_correct_number() {
-    assert_eq!(dict::indexing::get_offset("0").unwrap(), 52);
-    assert_eq!(dict::indexing::get_offset("9").unwrap(), 61);
+    assert_eq!(dict::indexing::decode_number("0").unwrap(), 52);
+    assert_eq!(dict::indexing::decode_number("9").unwrap(), 61);
 }
 
 #[test]
 fn test_that_slash_and_plus_get_correct_number() {
-    assert_eq!(dict::indexing::get_offset("+").unwrap(), 62);
-    assert_eq!(dict::indexing::get_offset("/").unwrap(), 63);
+    assert_eq!(dict::indexing::decode_number("+").unwrap(), 62);
+    assert_eq!(dict::indexing::decode_number("/").unwrap(), 63);
 }
 
 #[test]
 fn test_that_unknown_characters_return_error() {
-    assert!(dict::indexing::get_offset("*").is_err(), 99999);
+    assert!(dict::indexing::decode_number("*").is_err(), 99999);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,12 +46,12 @@ fn test_that_unknown_characters_return_error() {
 
 #[test]
 fn test_that_big_offsets_work() {
-    assert_eq!(dict::indexing::get_offset("3fW2").unwrap(), 14546358);
+    assert_eq!(dict::indexing::decode_number("3fW2").unwrap(), 14546358);
 }
 
 #[test]
 fn test_that_short_strings_work() {
-    assert_eq!(dict::indexing::get_offset("c").unwrap(), 28);
+    assert_eq!(dict::indexing::decode_number("c").unwrap(), 28);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
