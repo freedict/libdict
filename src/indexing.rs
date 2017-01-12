@@ -1,4 +1,4 @@
-//! # Dictionary indexing
+//! Parse and decode `*.index` files.
 //!
 //! Each dictionary file (`*.dict.?)`) is accompanied by a `*.index` file containing a list of
 //! words, together with its (byte) position in the dict file and its (byte) length. This module
@@ -83,7 +83,7 @@ fn parse_line(line: &str, line_number: usize) -> Result<(String, u64, u64), Dict
 }
 
 /// Parse the index for a dictionary from a given BufRead compatible object.
-pub fn parse_index<B: BufRead>(br: B) -> Result<HashMap<String, (u64, u64)>, DictError> {
+pub fn parse_index<B: BufRead>(br: B) -> Result<Index, DictError> {
     let mut index = HashMap::new();
 
     for (line_number, line) in br.lines().enumerate() {
@@ -96,7 +96,7 @@ pub fn parse_index<B: BufRead>(br: B) -> Result<HashMap<String, (u64, u64)>, Dic
 }
 
 /// Parse the index for a dictionary from a given file name.
-pub fn parse_index_from_file(filename: &str) -> Result<HashMap<String, (u64, u64)>, DictError> {
+pub fn parse_index_from_file(filename: &str) -> Result<Index, DictError> {
     let file = File::open(filename).unwrap();
     let file = BufReader::new(&file);
     parse_index(file)

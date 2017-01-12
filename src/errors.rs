@@ -1,23 +1,27 @@
+//! Errors for the Dict dictionary crate.
 use std::error;
 
 /// Error type, representing the errors which can be returned by the libdict library.
+///
+/// This enum represents a handful of custom errors and wraps `io:::Error` and
+/// `string::FromUtf8Error`.
 #[derive(Debug)]
 pub enum DictError {
-    /// the character at which the parser failed an optionally the line number
-    ///and position on the line
+    /// Invalid character, e.g. within the index file; the error contains the erorneous character,
+    /// andd optionally line and position.
     InvalidCharacter(char, Option<usize>, Option<usize>),
-    /// not enough columns given for specified line
+    /// Occurs whenever a line in an index file misses a column.
     MissingColumnInIndex(usize),
-    /// invalid file format, contains an explanation an an optional path to the
-    /// file with the invalid file format
+    /// Invalid file format, contains an explanation an an optional path to the
+    /// file with the invalid file format.
     InvalidFileFormat(String, Option<String>),
-    /// if there's not enough memory
+    /// This reports a malicous / malformed index file, which requests a buffer which is too large.
     MemoryError,
-    /// if the word is not in the index
+    /// This reports words which are not present in the dictionary.
     WordNotFound(String),
-    /// a wrapped io::Error
+    /// A wrapped io::Error.
     IoError(::std::io::Error),
-    /// UTF8 error while reading data
+    /// A wrapped Utf8Error.
     Utf8Error(::std::string::FromUtf8Error),
 }
 
@@ -70,7 +74,7 @@ impl error::Error for DictError {
     }
 }
 
-/// allow seamless coercion from::Error 
+// allow seamless coercion from::Error 
 impl From<::std::io::Error> for DictError {
     fn from(err: ::std::io::Error) -> DictError {
         DictError::IoError(err)
