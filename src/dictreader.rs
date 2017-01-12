@@ -1,3 +1,13 @@
+//! Open and read .dict or .dict.dz files
+//!
+//! This module contains traits and structs to work with uncompressed .dict and compressed .dict.dz
+//! files. These files contain the actual dictionary content. While these readers return the
+//! definitions, they do not do any post-processing. Definitions are normally plain text, but they
+//! could be HTML, or anything else, in theory (although plain text is the de facto default).
+//!
+//! To understand some of the constants defined in this module or to understand the internals of
+//! the DictReaderDz struct, it is advisable to have a brief look at
+//! [the GZip standard](https://tools.ietf.org/html/rfc1952).
 use byteorder::*;
 use flate2;
 use std::fs::File;
@@ -10,21 +20,25 @@ use errors::DictError;
 /// translation
 pub static MAX_BYTES_FOR_BUFFER: u64 = 1048576; // no headword definition is larger than 1M
 
-// ToDo: doc
-/// Flags for the GZ header to query for certain peroperties:
-pub static GZ_FEXTRA: u8 = 0b00000100; // fextra bit, additional field with information about gzip chunk size
+/// byte mask to query for existence of FEXTRA field in the flags byte of a `.dz` file
+pub static GZ_FEXTRA: u8 = 0b00000100;
+/// byte mask to query for the existence of a file name in a `.dz` file
 pub static GZ_FNAME: u8   = 0b00001000; // indicates whether a file name is contained in the archive
+/// byte mask to query for the existence of a comment in a `.dz` file
 pub static GZ_COMMENT: u8 = 0b00010000; // ndicates, whether a comment is present
-pub static GZ_FHCRC: u8   = 0b00000010; // indicate whether a CRC checksum is present
+/// byte mask to detect that a comment is contained in a `.dz` file
+pub static GZ_FHCRC: u8   = 0b00000010;
 
 
 /// .dict file format: either compressed or uncompressed
-/// A dictionary .dict or .dict.gz reader
+/// A dictionary (content) reader
 ///
 /// This type abstracts from the underlying seek operations required for lookup
 /// of headwords and provides easy methods to search for a word given a certain
-/// offset. It can parse both compressed and uncompressed .dict files.
+/// offset and length. Users of a type which implements this trait don't need to care about compression
+/// of the dictionary.
 pub trait DictReader {
+    /// fetch the definition from the dictionary at offset and length
     fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError>;
 }
 
@@ -58,7 +72,16 @@ impl<B: Read + Seek> DictReader for DictReaderRaw<B> {
     }
 }
 
-// ToDo: doc
+/// Load a [DictReader](trait.DictReader.html) from file.
+///
+/// This function loads a [Dictreader](trait.DictReader.html) from a file and transparently selects
+/// the correct reader using the file type extension, so the callee doesn't need to care about
+/// compression  (`.dz`).
+///
+/// # Errors
+///
+/// The function can return a `DictError`, which can either occur if a I/O error occurs, or when
+/// the GZ compressed file is invalid.
 pub fn load_dict(path: &str) -> Result<Box<DictReader>, DictError> {
     if path.ends_with(".dz") {
         let reader = File::open(path)?;
@@ -70,7 +93,7 @@ pub fn load_dict(path: &str) -> Result<Box<DictReader>, DictError> {
 }
 
 
-////////////////////////////////////////////////////////////////////////////////
+// -----------------------------------------------------------------------------
 // gzip handling
 
 /// Gzip Dict reader
@@ -90,6 +113,7 @@ pub struct DictReaderDz<B: Read + Seek> {
 }
 
 #[derive(Debug)]
+// a (GZ) chunk, representing length and offset withing the compressed file
 struct Chunk {
     offset: usize,
     length: usize,
@@ -196,7 +220,7 @@ impl<B: Read + Seek> DictReaderDz<B> {
                 uchunk_length: uchunk_length as usize })
     }
 
-    // ToDo: return meaningful error if length points to position past EOF
+    // ToDo: return meaningful error if length points to position past EOF; doc function
     fn get_chunks_for(&self, start_offset: u64, length: u64) -> Result<Vec<Chunk>, DictError> {
         let mut chunks = Vec::new();
         let start_chunk = start_offset as usize / self.uchunk_length;
@@ -222,6 +246,7 @@ impl<B: Read + Seek> DictReaderDz<B> {
 }
 
 impl<B: Read + Seek> DictReader for DictReaderDz<B> {
+    // Fetch definition from the dictionary.
     fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError> {
         if length > MAX_BYTES_FOR_BUFFER {
             return Err(DictError::MemoryError);
