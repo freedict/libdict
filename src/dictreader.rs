@@ -240,7 +240,7 @@ impl<B: Read + Seek> DictReaderDz<B> {
     fn inflate(&self, data: Vec<u8>) -> Result<Vec<u8>, DictError> {
         let mut decoder = flate2::Decompress::new(false);
         let mut decoded = vec![0u8; self.uchunk_length];
-        decoder.decompress(data.as_slice(), decoded.as_mut_slice(), flate2::Flush::None).unwrap();
+        decoder.decompress(data.as_slice(), decoded.as_mut_slice(), flate2::Flush::None)?;
         Ok(decoded)
     }
 }

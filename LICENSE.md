@@ -3,7 +3,7 @@ License
 
 This software is
 
-    (c) 2016 Sebastian Humenda, Julian Harttung
+    (c) 2016-2017 Sebastian Humenda, Julian Harttung
 
 This software is licensed under the terms of the Lesser GNU Public License,
 version 3, or at your option, any later version of the license. The full license

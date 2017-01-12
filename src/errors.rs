@@ -1,6 +1,8 @@
 //! Errors for the Dict dictionary crate.
 use std::error;
 
+use flate2;
+
 /// Error type, representing the errors which can be returned by the libdict library.
 ///
 /// This enum represents a handful of custom errors and wraps `io:::Error` and
@@ -23,6 +25,8 @@ pub enum DictError {
     IoError(::std::io::Error),
     /// A wrapped Utf8Error.
     Utf8Error(::std::string::FromUtf8Error),
+    /// errors thrown by the flate2 crate - not really descriptive errors, though.
+    DeflateError(flate2::DataError),
 }
 
 impl ::std::fmt::Display for DictError {
@@ -30,6 +34,8 @@ impl ::std::fmt::Display for DictError {
         match *self {
             DictError::IoError(ref e) => e.fmt(f),
             DictError::Utf8Error(ref e) => e.fmt(f),
+            DictError::DeflateError(ref err) => write!(f, "Error while using \
+                        the flate2 crate: {:?}", err),
             DictError::MemoryError => write!(f, "not enough memory available"),
             DictError::WordNotFound(ref word) => write!(f, "Word not found: {}", word),
             DictError::InvalidCharacter(ref ch, ref line, ref pos) =>
@@ -61,6 +67,7 @@ impl error::Error for DictError {
             DictError::InvalidFileFormat(ref _explanation, ref _path) => "could not \
                     determine file format",
             DictError::IoError(ref err) => err.description(),
+            DictError::DeflateError(_) => "invalid data, couldn't inflate",
             DictError::Utf8Error(ref err) => err.description(),
         }
     }
@@ -84,6 +91,12 @@ impl From<::std::io::Error> for DictError {
 impl From<::std::string::FromUtf8Error> for DictError {
     fn from(err: ::std::string::FromUtf8Error) -> DictError {
         DictError::Utf8Error(err)
+    }
+}
+
+impl From<flate2::DataError> for DictError {
+    fn from(err: flate2::DataError) -> DictError {
+        DictError::DeflateError(err)
     }
 }
 

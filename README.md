@@ -1,25 +1,28 @@
 LibDict -- Read *.dict(.dz) dictionary files
 ============================================
 
-This is an attempt to provide an library implementation for reading the
-dict(.dz) dictionary format. It aims at providing efficient means to look up
-search terms from a given dictionary.
-
-The plan is as follows:
-
-1.  parse the format
-2.  provide a convenient wrapper type, bundling all functionality in a
-    user-friendly interface
-    -   allow lookup of words
-    -   allow retrieving a certain number of words starting with a specific
-        prefix
-3.  add gzip support
-4.  add caching support (cache words which have been looked up)
-5.  provide C API
+This crate (library) provides a Rust implementation for parsing the dict file
+format, as used by the dictd server.
 
 
 License
 -------
 
-Please see the file `LiCENSE.md` for more information.
+Please see the file [LiCENSE.md](LICENSE.md) for more information.
+
+Example Usage
+-------------
+
+Citing from the crates documentation:
+
+```
+fn main() {
+    let index_file = "/usr/share/dictd/freedict-lat-deu.index";
+    let dict_file = "/usr/share/dictd/freedict-lat-deu.dict.dz";
+    let mut latdeu = dict::load_dictionary_from_file(dict_file, index_file).unwrap();
+    // hey: rust!
+    println!("{}", latdeu.lookup("ferrugo").unwrap());
+}
+
+```
 
