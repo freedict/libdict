@@ -3,5 +3,6 @@ name = "dict"
 version = "0.1.0"
 authors = ["streicher <shumenda |at| gmx |dot| de>"]
 
-#[dependencies]
-#phf_macros = "*" # doesn't work
+[dependencies]
+byteorder = "0.5"
+flate2 = "0.2"

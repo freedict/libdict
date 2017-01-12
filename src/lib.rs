@@ -1,17 +1,14 @@
-pub mod indexing;
+extern crate byteorder;
+extern crate flate2;
+
 pub mod dictreader;
-mod errors;
+pub mod errors;
+pub mod indexing;
 
-// make errors appear on top level
-pub use errors::*;
-
+use self::dictreader::DictReader;
+use self::indexing::Index;
 
 use std::collections::HashMap;
-use std::io::BufReader;
-use std::fs::File;
-
-
-use self::dictreader::{DictReader, DictReaderRaw};
 
 macro_rules! get(
     ($e:expr) => (match $e {
@@ -20,28 +17,31 @@ macro_rules! get(
     })
 );
 
-
 pub struct Dictionary {
     dict_reader: Box<DictReader>,
     word_index: HashMap<String, (u64, u64)>
 }
 
 impl Dictionary {
-    fn lookup(&mut self, word: &str) -> Option<String> {
-        let &(start, length) = get!(self.word_index.get(word));
-        self.dict_reader.fetch_definition(start, length).ok()
+    pub fn lookup(&mut self, word: &str) -> Result<String, errors::DictError> {
+        let &(start, length) = self.word_index.get(word).ok_or(errors::DictError::WordNotFound(word.into()))?;
+        self.dict_reader.fetch_definition(start, length)
     }
 }
 
-/// Load dictionary from given input
+/// Load dictionary from given paths
 ///
 /// A dictionary is made of an index and a dictionary (data) file, both are opened from the given
 /// input file names. Gzipped files will be handled automatically. ToDo: nimplemented
-pub fn load_dictionary(content_fn: &str, index_fn: &str) -> Result<Dictionary,
+pub fn load_dictionary_from_file(content_fn: &str, index_fn: &str) -> Result<Dictionary,
             errors::DictError> {
-    let br = BufReader::new(File::open(content_fn)?);
-    let dreader = Box::new(DictReaderRaw::new(br));
+    let dreader = dictreader::load_dict(content_fn)?;
     let index = indexing::parse_index_from_file(index_fn)?;
     Ok(Dictionary { dict_reader: dreader, word_index: index })
+}
+
+/// load dictionary from a given dict reader
+pub fn load_dictionary(content: Box<DictReader>, index: Index) -> Dictionary {
+    Dictionary { dict_reader: content, word_index: index }
 }
 
