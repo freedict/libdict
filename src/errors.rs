@@ -38,16 +38,16 @@ impl ::std::fmt::Display for DictError {
                         the flate2 crate: {:?}", err),
             DictError::MemoryError => write!(f, "not enough memory available"),
             DictError::WordNotFound(ref word) => write!(f, "Word not found: {}", word),
-            DictError::InvalidCharacter(ref ch, ref line, ref pos) =>
-                write!(f, "Invalid character {}{}{}", ch,
-                        match *line {
-                            Some(ln) => format!(" on line {}", ln),
-                            _ => String::new() // ToDo: more leegant solution
-                        },
-                        match *pos {
-                            Some(pos) => format!(" at position {}", pos),
-                            _ => String::new() // ToDo: more leegant solution
-                        }),
+            DictError::InvalidCharacter(ref ch, ref line, ref pos) => {
+                let mut ret = write!(f, "Invalid character {}", ch);
+                if let Some(ln) = *line {
+                    ret = write!(f, " on line {}", ln);
+                }
+                if let Some(pos) = *pos {
+                    ret = write!(f, " at position {}", pos);
+                }
+                ret
+            },
             DictError::MissingColumnInIndex(ref lnum) => write!(f, "line {}: not \
                     enough <tab>-separated columns found, expected 3", lnum),
             DictError::InvalidFileFormat(ref explanation, ref path) =>
