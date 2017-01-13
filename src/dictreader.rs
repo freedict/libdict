@@ -8,6 +8,7 @@
 //! To understand some of the constants defined in this module or to understand the internals of
 //! the DictReaderDz struct, it is advisable to have a brief look at
 //! [the GZip standard](https://tools.ietf.org/html/rfc1952).
+
 use byteorder::*;
 use flate2;
 use std::fs::File;
@@ -47,20 +48,28 @@ pub trait DictReader {
 /// This reader can read uncompressed .dict files.
 pub struct DictReaderRaw<B: Read + Seek> {
     dict_data: B,
+    total_length: u64,
 }
 
 impl<B: Read + Seek> DictReaderRaw<B> {
     /// Get a new DictReader from a Reader.
-    pub fn new(dict_data: B) -> DictReaderRaw<B> {
-        DictReaderRaw { dict_data: dict_data }
+    pub fn new(mut dict_data: B) -> Result<DictReaderRaw<B>, DictError> {
+        let end = dict_data.seek(SeekFrom::End(0))?;
+        Ok(DictReaderRaw { dict_data: dict_data, total_length: end })
     }
 }
 
 impl<B: Read + Seek> DictReader for DictReaderRaw<B> {
+    /// fetch definition from dictionary
     fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError> {
         if length > MAX_BYTES_FOR_BUFFER {
             return Err(DictError::MemoryError);
         }
+        if (start_offset + length) > self.total_length {
+            return Err(DictError::IoError(io::Error::new(io::ErrorKind::UnexpectedEof, "a \
+                      seek beyond the end of uncompressed data was requested")));
+        }
+
         self.dict_data.seek(SeekFrom::Start(start_offset))?;
         let mut read_data = vec![0; length as usize];
         let bytes_read = try!(self.dict_data.read(read_data.as_mut_slice())) as u64;
@@ -88,7 +97,7 @@ pub fn load_dict(path: &str) -> Result<Box<DictReader>, DictError> {
         Ok(Box::new(DictReaderDz::new(reader)?))
     } else {
         let reader = BufReader::new(File::open(path)?);
-        Ok(Box::new(DictReaderRaw::new(reader)))
+        Ok(Box::new(DictReaderRaw::new(reader)?))
     }
 }
 
@@ -106,10 +115,12 @@ pub struct DictReaderDz<B: Read + Seek> {
     dzdict: B,
     /// length of an uncompressed chunk
     uchunk_length: usize,
-    /// end of gz header, beginning of compressed data
-    end_of_header: usize,
+    /// end of compressed data
+    end_compressed_data: usize,
     /// offsets in file where a new compressed chunk starts
-    chunk_offsets: Vec<usize>
+    chunk_offsets: Vec<usize>,
+    /// total size of uncompressed file
+    ufile_length: u64, // has u64 to be quicker in comparing to offsets
 }
 
 #[derive(Debug)]
@@ -199,7 +210,7 @@ impl<B: Read + Seek> DictReaderDz<B> {
         // save length of each compressed chunk
         let mut chunk_offsets = Vec::with_capacity(chunk_count as usize);
         // save position of last compressed byte (this is NOT EOF, could be followed by CRC checksum)
-        let mut end_of_header = buffered_dzdict.seek(SeekFrom::Current(0))? as usize;
+        let mut end_compressed_data = buffered_dzdict.seek(SeekFrom::Current(0))? as usize;
         // after the various header bytes parsed above, the list of chunk lengths can be found (slice for easier indexing)
         let chunks_from_header = &fextra[10usize..(10 + chunk_count * 2) as usize];
 
@@ -207,20 +218,23 @@ impl<B: Read + Seek> DictReaderDz<B> {
         for index in (0..chunks_from_header.len()).filter(|i| (i%2)==0) {
             let index = index as usize;
             let compressed_len = LittleEndian::read_u16(&chunks_from_header[index..(index + 2)]) as usize;
-            chunk_offsets.push(end_of_header);
-            end_of_header += compressed_len;
+            chunk_offsets.push(end_compressed_data);
+            end_compressed_data += compressed_len;
         }
-   
         assert_eq!(chunk_offsets.len() as u16, chunk_count, "The read number of compressed chunks in \
                 the .dz file must be equivalent to the number of chunks actually found in the file.\n");
-    
+
+        // read uncompressed file length
+        buffered_dzdict.seek(SeekFrom::Start(end_compressed_data as u64))?;
+        let uncompressed = buffered_dzdict.read_i32::<LittleEndian>()?;
+
         Ok(DictReaderDz { dzdict: buffered_dzdict.into_inner(),
                 chunk_offsets: chunk_offsets,
-                end_of_header: end_of_header,
-                uchunk_length: uchunk_length as usize })
+                end_compressed_data: end_compressed_data,
+                uchunk_length: uchunk_length as usize,
+                ufile_length: uncompressed as u64 })
     }
 
-    // ToDo: return meaningful error if length points to position past EOF; doc function
     fn get_chunks_for(&self, start_offset: u64, length: u64) -> Result<Vec<Chunk>, DictError> {
         let mut chunks = Vec::new();
         let start_chunk = start_offset as usize / self.uchunk_length;
@@ -228,7 +242,7 @@ impl<B: Read + Seek> DictReaderDz<B> {
         for id in start_chunk..(end_chunk + 1) {
             let chunk_length = match self.chunk_offsets.get(id+1) {
                 Some(next) => next - self.chunk_offsets[id],
-                None => self.end_of_header - self.chunk_offsets[id],
+                None => self.end_compressed_data - self.chunk_offsets[id],
             };
             chunks.push(Chunk { offset: self.chunk_offsets[id], length: chunk_length });
         }
@@ -250,6 +264,10 @@ impl<B: Read + Seek> DictReader for DictReaderDz<B> {
     fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError> {
         if length > MAX_BYTES_FOR_BUFFER {
             return Err(DictError::MemoryError);
+        }
+        if (start_offset + length) > self.ufile_length {
+            return Err(DictError::IoError(io::Error::new(io::ErrorKind::UnexpectedEof, "a \
+                      seek beyond the end of uncompressed data was requested")));
         }
         let mut data = Vec::new();
         for chunk in self.get_chunks_for(start_offset, length)? {

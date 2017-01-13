@@ -33,7 +33,7 @@ fn str2file(input: &str) -> StringFile {
 
 
 fn mk_dict(x: StringFile) -> dictreader::DictReaderRaw<StringFile> {
-    dictreader::DictReaderRaw::new(x)
+    dictreader::DictReaderRaw::new(x).unwrap()
 }
 
 #[test]
@@ -273,5 +273,13 @@ fn test_file_without_file_name_is_parsed_correctly() {
     let word = dict.lookup("mater");
     let word = word.unwrap();
     assert!(word.starts_with("mater"));
+}
+
+#[test]
+#[should_panic]
+fn test_that_seek_beyond_end_of_file_is_detected() {
+    let dictdz = get_asset_path("lat-deu.dict.dz");
+    let mut dict = dictreader::load_dict(dictdz.to_str().unwrap()).unwrap();
+    dict.fetch_definition(9999999999u64, 888u64).unwrap();
 }
 
