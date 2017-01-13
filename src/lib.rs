@@ -62,7 +62,7 @@ impl Dictionary {
 /// Load dictionary from given paths
 ///
 /// A dictionary is made of an index and a dictionary (data) file, both are opened from the given
-/// input file names. Gzipped files will be handled automatically. ToDo: nimplemented
+/// input file names. Gzipped files with the suffix `.dz` will be handled automatically.
 pub fn load_dictionary_from_file(content_fn: &str, index_fn: &str) -> Result<Dictionary,
             errors::DictError> {
     let dreader = dictreader::load_dict(content_fn)?;
