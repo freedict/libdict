@@ -17,7 +17,7 @@ pub enum DictError {
     /// Invalid file format, contains an explanation an an optional path to the
     /// file with the invalid file format.
     InvalidFileFormat(String, Option<String>),
-    /// This reports a malicous / malformed index file, which requests a buffer which is too large.
+    /// This reports a malicious / malformed index file, which requests a buffer which is too large.
     MemoryError,
     /// This reports words which are not present in the dictionary.
     WordNotFound(String),
