@@ -24,11 +24,11 @@ use file_access::MmappedFileSlice;
 pub static MAX_BYTES_FOR_BUFFER: u64 = 1048576; // no headword definition is larger than 1M
 
 /// byte mask to query for existence of FEXTRA field in the flags byte of a `.dz` file
-pub static GZ_FEXTRA: u8 = 0b00000100;
+pub static GZ_FEXTRA: u8  = 0b00000100;
 /// byte mask to query for the existence of a file name in a `.dz` file
 pub static GZ_FNAME: u8   = 0b00001000; // indicates whether a file name is contained in the archive
 /// byte mask to query for the existence of a comment in a `.dz` file
-pub static GZ_COMMENT: u8 = 0b00010000; // ndicates, whether a comment is present
+pub static GZ_COMMENT: u8 = 0b00010000; // indicates whether a comment is present
 /// byte mask to detect that a comment is contained in a `.dz` file
 pub static GZ_FHCRC: u8   = 0b00000010;
 
@@ -113,10 +113,9 @@ pub fn load_dict<P>(path: P) -> Result<Box<DictReader>, DictError>
 /// This reader can read compressed .dict files. with the file name suffix .dz.
 /// This format is documented in RFC 1952 and in `man dictzip`. An example implementation can be
 /// found in the dict daemon (dictd) in `data.c`.
-pub struct DictReaderDz<'mmap> {
-    /// mmap object
-    /// compressed DZ dictionary
-    dzdict: &'mmap [u8],
+pub struct DictReaderDz {
+    /// memory mapped dictionary (compressed)
+    dzdict: MmappedDict,
     /// length of an uncompressed chunk
     uchunk_length: usize,
     /// end of compressed data
@@ -127,6 +126,28 @@ pub struct DictReaderDz<'mmap> {
     ufile_length: u64, // has u64 to be quicker in comparing to offsets
 }
 
+pub struct MmappedDict {
+    mmap: memmap::Mmap,
+}
+
+impl MmappedDict {
+    pub fn new(path: &str) -> Result<MmappedDict, DictError> {
+        let mmap = memmap::Mmap::open_path(path, memmap::Protection::Read)?;
+        Ok(MmappedDict { mmap: mmap })
+    }
+
+    /// Retrieve the mapped memory region as a byte slice
+    pub fn as_slice(&self) -> &[u8] {
+        // Mmap::as_slice() is unsafe because the caller must guarantee that the
+        // referenced memory is never concurrently modified. This is ensured
+        // because new() always creates a read-only memory map. Thus, it is okay
+        // to wrap this call in a safe method.
+        unsafe {
+            self.mmap.as_slice()
+        }
+    }
+}
+
 #[derive(Debug)]
 // a (GZ) chunk, representing length and offset withing the compressed file
 struct Chunk {
@@ -134,21 +155,21 @@ struct Chunk {
     length: usize,
 }
 
-impl<'mmap> DictReaderDz<'mmap> {
+impl DictReaderDz {
     /// Get a new DictReader from a Reader.
-    pub fn new(dzdict: &'mmap [u8]) -> Result<DictReaderDz<'mmap>, DictError> {
-        if dzdict[0..2] != [0x1F, 0x8B] {
+    pub fn new(dzdict: MmappedDict) -> Result<DictReaderDz, DictError> {
+        if dzdict.as_slice()[0..2] != [0x1F, 0x8B] {
             return Err(DictError::InvalidFileFormat("Not in gzip format".into(), None));
         }
     
-        let flags = dzdict[3]; // bitmap of gzip attributes
+        let flags = dzdict.as_slice()[3]; // bitmap of gzip attributes
         if (flags & GZ_FEXTRA) == 0 { // check whether FLG.FEXTRA is set
             return Err(DictError::InvalidFileFormat("Extra flag (FLG.FEXTRA) \
                        not set, not in gzip + dzip format".into(), None));
         }
     
         // read XLEN, length of extra FEXTRA field
-        let xlen = LittleEndian::read_u16(&dzdict[10..12]);
+        let xlen = LittleEndian::read_u16(&dzdict.as_slice()[10..12]);
     
         // start of FEXTRA data (after byte 12)
         if dzdict[12..14] != ['R' as u8, 'A' as u8] {
@@ -156,11 +177,11 @@ impl<'mmap> DictReaderDz<'mmap> {
                     header (behind XLEN, in SI1SI2 fields)".into(), None));
         }
     
-        let length_subfield = LittleEndian::read_u16(&dzdict[14..16]);
+        let length_subfield = LittleEndian::read_u16(&dzdict.as_slice()[14..16]);
         assert_eq!(length_subfield, xlen - 4, "the length of the subfield \
                    should be the same as the fextra field, ignoring the \
                    additional length information and the file format identification");
-        let subf_version = LittleEndian::read_u16(&dzdict[16..18]);
+        let subf_version = LittleEndian::read_u16(&dzdict.as_slice()[16..18]);
         if subf_version != 1 {
              return Err(DictError::InvalidFileFormat("Unimplemented dictzip \
                      version, only ver 1 supported".into(), None));
@@ -168,9 +189,9 @@ impl<'mmap> DictReaderDz<'mmap> {
     
         // before compression, the file is split into evenly-sized chunks and the size information
         // is put right after the version information:
-        let uchunk_length = LittleEndian::read_u16(&dzdict[18..20]);
+        let uchunk_length = LittleEndian::read_u16(&dzdict.as_slice()[18..20]);
         // number of chunks in the file
-        let chunk_count = LittleEndian::read_u16(&dzdict[20..22]);
+        let chunk_count = LittleEndian::read_u16(&dzdict.as_slice()[20..22]);
         if chunk_count == 0 {
             return Err(DictError::InvalidFileFormat("No compressed chunks in \
                     file or broken header information".into(), None));
@@ -192,13 +213,13 @@ impl<'mmap> DictReaderDz<'mmap> {
         // if file name bit set, seek beyond the 0-terminated file name, we don't care
         if (flags & GZ_FNAME) != 0 {
             // fname starts _after_ xlen field
-            pos_in_buffer += dzdict.iter().skip(pos_in_buffer).position(
+            pos_in_buffer += dzdict.as_slice().iter().skip(pos_in_buffer).position(
                 |&x| x == '\0' as u8).unwrap() as usize; // todo, kein unwrap
         }
     
         // seek past comment, if any
         if (flags & GZ_COMMENT) != 0 {
-            pos_in_buffer += dzdict.iter().skip(pos_in_buffer).position(
+            pos_in_buffer += dzdict.as_slice().iter().skip(pos_in_buffer).position(
                 |&x| x == '\0' as u8).unwrap() as usize;
         }
     
@@ -209,23 +230,27 @@ impl<'mmap> DictReaderDz<'mmap> {
     
         // save length of each compressed chunk
         let mut chunk_offsets = Vec::with_capacity(chunk_count as usize);
-        // after the various header bytes parsed above, the list of chunk lengths can be found (slice for easier indexing)
-        let chunks_from_header = &dzdict[22usize..(22 + chunk_count * 2) as usize];
 
-        let mut end_of_compressed = pos_in_buffer;
-        // iterate over each 2nd byte, parse u16
-        for index in (0..chunks_from_header.len()).filter(|i| (i%2)==0) {
-            let index = index as usize;
-            let compressed_len = LittleEndian::read_u16(&chunks_from_header[index..(index + 2)]) as usize;
-            chunk_offsets.push(end_of_compressed);
-            pos_in_buffer += compressed_len;
+        let end_of_compressed = pos_in_buffer;
+
+        {
+            // after the various header bytes parsed above, the list of chunk lengths can be found (slice for easier indexing)
+            let chunks_from_header = &dzdict.as_slice()[22usize..(22 + chunk_count * 2) as usize];
+
+            // iterate over each 2nd byte, parse u16
+            for index in (0..chunks_from_header.len()).filter(|i| (i%2)==0) {
+                let index = index as usize;
+                let compressed_len = LittleEndian::read_u16(&chunks_from_header[index..(index + 2)]) as usize;
+                chunk_offsets.push(end_of_compressed);
+                pos_in_buffer += compressed_len;
+            }
         }
         assert_eq!(chunk_offsets.len() as u16, chunk_count, "The read number of compressed chunks in \
                 the .dz file must be equivalent to the number of chunks actually found in the file.\n");
 
         // read uncompressed file length, located at  EOF - 8 (or at end of compressed data)
         let uncompressed = LittleEndian::read_i32(
-                &dzdict[end_of_compressed..end_of_compressed+4]);
+                &dzdict.as_slice()[end_of_compressed..end_of_compressed+4]);
 
         Ok(DictReaderDz { dzdict: dzdict,
                 chunk_offsets: chunk_offsets,
@@ -258,7 +283,7 @@ impl<'mmap> DictReaderDz<'mmap> {
     }
 }
 
-impl<'mmap> DictReader for DictReaderDz<'mmap> {
+impl DictReader for DictReaderDz {
     // Fetch definition from the dictionary.
     fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError> {
         if length > MAX_BYTES_FOR_BUFFER {
@@ -270,7 +295,7 @@ impl<'mmap> DictReader for DictReaderDz<'mmap> {
         }
         let mut data = Vec::new();
         for chunk in self.get_chunks_for(start_offset, length)? {
-            let definition = &self.dzdict[chunk.offset..chunk.offset + chunk.length];
+            let definition = &self.dzdict.as_slice()[chunk.offset..chunk.offset + chunk.length];
             data.push(self.inflate(definition)?);
         };
 
