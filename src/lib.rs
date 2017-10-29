@@ -29,13 +29,7 @@ use self::dictreader::DictReader;
 use self::indexing::Index;
 
 use std::collections::HashMap;
-
-macro_rules! get(
-    ($e:expr) => (match $e {
-        Some(e) => e,
-        None => return None
-    })
-);
+use std::path::Path;
 
 /// A dictionary wrapper.
 ///
@@ -63,7 +57,7 @@ impl Dictionary {
 
     /// Check whether a word is contained in the index
     pub fn contains(&self, word: &str) -> bool {
-        self.word_index.get(&word.to_lowercase()).is_some()
+        self.word_index.contains_key(&word.to_lowercase()).is_some()
     }
 
     /// Case-sensitive member check.
@@ -72,7 +66,7 @@ impl Dictionary {
     /// it's lower case or not. This can help to avoid an additional allocation, if the caller can
     /// be sure that the string is already lower case.
     pub fn contains_unchecked(&self, word: &str) -> bool {
-        self.word_index.get(word).is_some()
+        self.word_index.contains_key(word)
     }
 }
 
@@ -80,10 +74,11 @@ impl Dictionary {
 ///
 /// A dictionary is made of an index and a dictionary (data) file, both are opened from the given
 /// input file names. Gzipped files with the suffix `.dz` will be handled automatically.
-pub fn load_dictionary_from_file(content_fn: &str, index_fn: &str) -> Result<Dictionary,
-            errors::DictError> {
-    let dreader = dictreader::load_dict(content_fn)?;
-    let index = indexing::parse_index_from_file(index_fn)?;
+pub fn load_dictionary_from_file<P: AsRef<Path>>(content_fn: P,
+        index_fn: P)
+        -> Result<Dictionary, errors::DictError> {
+    let dreader = dictreader::load_dict(&content_fn)?;
+    let index = indexing::parse_index_from_file(&index_fn)?;
     Ok(Dictionary { dict_reader: dreader, word_index: index })
 }
 

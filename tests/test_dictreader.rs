@@ -80,14 +80,16 @@ fn test_error_if_length_is_too_large() {
 #[test]
 #[should_panic]
 fn test_files_with_incorrect_file_id_are_detected() {
-    let data = Cursor::new(vec![0x1F, 0x8C]);
+    let data = vec![0x1F, 0x8C];
     DictReaderDz::new(data).unwrap();
 }
 
 #[test]
 fn test_files_with_correct_file_id_work() {
-    let file = load_resource("lat-deu.dict.dz");
-    DictReaderDz::new(file).unwrap();
+    let mut file = load_resource("lat-deu.dict.dz");
+    let mut data = vec![];
+    file.read_to_end(&mut data).unwrap();
+    DictReaderDz::new(data).unwrap();
 }
 
 #[test]
@@ -98,7 +100,7 @@ fn test_gzip_files_without_fextra_panic() {
     rsrc.read_to_end(&mut data).unwrap();
     // reset flags field to 0
     data[3] = 0;
-    let data = Cursor::new(data);
+    let data = data;
     DictReaderDz::new(data).unwrap();
 }
 
@@ -112,7 +114,6 @@ fn test_that_file_with_invalid_si_bytes_reporged() {
     // reset flags field to 0
     data[12] = 0;
     data[13] = 0;
-    let data = Cursor::new(data);
     DictReaderDz::new(data).unwrap();
 }
 
@@ -126,7 +127,6 @@ fn test_gzip_with_invalid_version_num_are_reported() {
     // reset version field to 0
     data[16] = 0;
     data[17] = 0;
-    let data = Cursor::new(data);
     DictReaderDz::new(data).unwrap();
 }
 
@@ -143,7 +143,6 @@ fn test_mismatching_subfield_length_and_fextra_length_is_reported() {
     // reset flags field to 0
     data[14] = 0;
     data[15] = 0;
-    let data = Cursor::new(data);
     DictReaderDz::new(data).unwrap();
 }
 
@@ -160,7 +159,6 @@ fn test_chunk_count_may_not_be_0() {
     // reset chunk count to 0
     data[20] = 0;
     data[21] = 0;
-    let data = Cursor::new(data);
     DictReaderDz::new(data).unwrap();
 }
 
@@ -175,7 +173,6 @@ fn test_chunk_count_and_xlen_must_match() {
     // reset chunk count to 0
     data[20] = 8;
     data[21] = 9;
-    let data = Cursor::new(data);
     DictReaderDz::new(data).unwrap();
 }
 
@@ -183,7 +180,7 @@ fn test_chunk_count_and_xlen_must_match() {
 fn test_retrieval_of_a_word_which_doesnt_exist_yields_error() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(&dictdz, &index).unwrap();
     assert!(dict.lookup("testtesttest").is_err());
 }
 
@@ -191,7 +188,7 @@ fn test_retrieval_of_a_word_which_doesnt_exist_yields_error() {
 fn test_retrieval_of_a_word_which_exists_works() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(&dictdz, &index).unwrap();
     let word = dict.lookup("mater");
     let word = word.unwrap();
     assert!(word.starts_with("mater"));
@@ -201,7 +198,7 @@ fn test_retrieval_of_a_word_which_exists_works() {
 fn test_that_word_from_first_chunk_works() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(&dictdz, &index).unwrap();
     let word = dict.lookup("amo").unwrap();
     assert!(word.starts_with("amo"));
 }
@@ -210,7 +207,7 @@ fn test_that_word_from_first_chunk_works() {
 fn test_lookup_into_last_chunk_works() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(&dictdz, &index).unwrap();
     let word = dict.lookup("vultus").unwrap();
     assert!(word.starts_with("vultus"));
 }
@@ -219,7 +216,7 @@ fn test_lookup_into_last_chunk_works() {
 fn test_that_definitions_wrapping_around_chunk_border_are_extracted_correctly() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(&dictdz, &index).unwrap();
     // for the above dictionary, the chunk (or block) length of each uncompressed chunk is 58315;
     // exactly there, the definition circumfero is split into two pieces:
     let word = dict.lookup("circumfero").unwrap();
@@ -244,8 +241,8 @@ fn test_files_with_comment_is_parsed_correctly() {
     newdata.extend(vec![104u8, 105u8, 32u8, 116u8, 104u8, 101u8, 114u8, 101u8, 0u8]);
     newdata.extend(&data[49..]);
 
-    let data = dict::dictreader::DictReaderDz::new(Cursor::new(newdata)).unwrap();
-    let index = dict::indexing::parse_index_from_file(get_asset_path("lat-deu.index").to_str().unwrap()).unwrap();
+    let data = dict::dictreader::DictReaderDz::new(newdata).unwrap();
+    let index = dict::indexing::parse_index_from_file(&get_asset_path("lat-deu.index")).unwrap();
     let mut dict = dict::load_dictionary(Box::new(data), index);
     let word = dict.lookup("mater");
     let word = word.unwrap();
@@ -267,8 +264,8 @@ fn test_file_without_file_name_is_parsed_correctly() {
     newdata.extend(&data[0..36]);
     newdata.extend(&data[49..]);
 
-    let data = dict::dictreader::DictReaderDz::new(Cursor::new(newdata)).unwrap();
-    let index = dict::indexing::parse_index_from_file(get_asset_path("lat-deu.index").to_str().unwrap()).unwrap();
+    let data = dict::dictreader::DictReaderDz::new(newdata).unwrap();
+    let index = dict::indexing::parse_index_from_file(&get_asset_path("lat-deu.index")).unwrap();
     let mut dict = dict::load_dictionary(Box::new(data), index);
     let word = dict.lookup("mater");
     let word = word.unwrap();

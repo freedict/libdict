@@ -6,4 +6,5 @@ authors = ["Sebastian Humenda <shumenda |at| gmx |dot| de>"]
 [dependencies]
 byteorder = "0.5"
 flate2 = "0.2"
-memmap = "0.5"
+memmap = "0.6"
+

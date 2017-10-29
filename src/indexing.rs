@@ -96,7 +96,8 @@ pub fn parse_index<B: BufRead>(br: B) -> Result<Index, DictError> {
 }
 
 /// Parse the index for a dictionary from a given file name.
-pub fn parse_index_from_file(filename: &str) -> Result<Index, DictError> {
+pub fn parse_index_from_file<P: AsRef<::std::path::Path>>(filename: &P)
+            -> Result<Index, DictError> {
     let file = File::open(filename)?;
     let file = BufReader::new(&file);
     parse_index(file)
