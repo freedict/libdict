@@ -54,8 +54,23 @@ impl Dictionary {
     /// found, `DictError::WordNotFound` is returned. Other errors all result from the parsing of
     /// the underlying files.
     pub fn lookup(&mut self, word: &str) -> Result<String, errors::DictError> {
-        let &(start, length) = self.word_index.get(word).ok_or(errors::DictError::WordNotFound(word.into()))?;
+        let &(start, length) = self.word_index.get(&word.to_lowercase()).ok_or(
+                errors::DictError::WordNotFound(word.into()))?;
         self.dict_reader.fetch_definition(start, length)
+    }
+
+    /// Check whether a word is contained in the index
+    pub fn contains(&self, word: &str) -> bool {
+        self.word_index.get(&word.to_lowercase()).is_some()
+    }
+
+    /// Case-sensitive member check.
+    ///
+    /// This will check whether the given word is contained in the index, without checking whether
+    /// it's lower case or not. This can help to avoid an additional allocation, if the caller can
+    /// be sure that the string is already lower case.
+    pub fn contains_unchecked(&self, word: &str) -> bool {
+        self.word_index.get(word).is_some()
     }
 }
 
