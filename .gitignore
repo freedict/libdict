@@ -1,6 +1,8 @@
 build
 Cargo.lock
+.swp
 *.swp
 *.swo
 *.swn
+*.swm
 target/

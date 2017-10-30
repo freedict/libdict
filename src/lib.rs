@@ -18,9 +18,11 @@
 //! ```
 extern crate byteorder;
 extern crate flate2;
+extern crate memmap;
 
 pub mod dictreader;
 pub mod errors;
+pub mod file_access;
 pub mod indexing;
 
 use self::dictreader::DictReader;
