@@ -7,7 +7,7 @@
 //!
 //! The usage is straight forward:
 //!
-//! ```
+//! ```rust,no_run
 //! fn main() {
 //!     let index_file = "/usr/share/dictd/freedict-lat-deu.index";
 //!     let dict_file = "/usr/share/dictd/freedict-lat-deu.dict.dz";
