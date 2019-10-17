@@ -55,7 +55,7 @@ impl<B: Read + Seek> DictReaderRaw<B> {
     /// Get a new DictReader from a Reader.
     pub fn new(mut dict_data: B) -> Result<DictReaderRaw<B>, DictError> {
         let end = dict_data.seek(SeekFrom::End(0))?;
-        Ok(DictReaderRaw { dict_data: dict_data, total_length: end })
+        Ok(DictReaderRaw { dict_data, total_length: end })
     }
 }
 
@@ -151,9 +151,9 @@ impl<B: Read + Seek> DictReaderDz<B> {
     
         // read FEXTRA data
         let mut fextra = vec![0u8; xlen as usize];
-        buffered_dzdict.read(&mut fextra)?;
+        buffered_dzdict.read_exact(&mut fextra)?;
 
-        if fextra[0..2] != ['R' as u8, 'A' as u8] {
+        if fextra[0..2] != [b'R', b'A'] {
             return Err(DictError::InvalidFileFormat("No dictzip info found in FEXTRA \
                     header (behind XLEN, in SI1SI2 fields)".into(), None));
         }
@@ -193,13 +193,13 @@ impl<B: Read + Seek> DictReaderDz<B> {
         // if file name bit set, seek beyond the 0-terminated file name, we don't care
         if (flags & GZ_FNAME) != 0 {
             let mut tmp = Vec::new();
-            buffered_dzdict.read_until('\0' as u8, &mut tmp)?;
+            buffered_dzdict.read_until(b'\0', &mut tmp)?;
         }
     
         // seek past comment, if any
         if (flags & GZ_COMMENT) != 0 {
             let mut tmp = Vec::new();
-            buffered_dzdict.read_until('\0' as u8, &mut tmp)?;
+            buffered_dzdict.read_until(b'\0', &mut tmp)?;
         }
     
         // skip CRC stuff, 2 bytes
@@ -229,8 +229,8 @@ impl<B: Read + Seek> DictReaderDz<B> {
         let uncompressed = buffered_dzdict.read_i32::<LittleEndian>()?;
 
         Ok(DictReaderDz { dzdict: buffered_dzdict.into_inner(),
-                chunk_offsets: chunk_offsets,
-                end_compressed_data: end_compressed_data,
+                chunk_offsets,
+                end_compressed_data,
                 uchunk_length: uchunk_length as usize,
                 ufile_length: uncompressed as u64 })
     }
@@ -239,7 +239,7 @@ impl<B: Read + Seek> DictReaderDz<B> {
         let mut chunks = Vec::new();
         let start_chunk = start_offset as usize / self.uchunk_length;
         let end_chunk = (start_offset + length) as usize / self.uchunk_length;
-        for id in start_chunk..(end_chunk + 1) {
+        for id in start_chunk..=end_chunk {
             let chunk_length = match self.chunk_offsets.get(id+1) {
                 Some(next) => next - self.chunk_offsets[id],
                 None => self.end_compressed_data - self.chunk_offsets[id],

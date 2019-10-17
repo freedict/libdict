@@ -47,7 +47,7 @@ impl Dictionary {
     /// found, `DictError::WordNotFound` is returned. Other errors all result from the parsing of
     /// the underlying files.
     pub fn lookup(&mut self, word: &str) -> Result<String, errors::DictError> {
-        let &(start, length) = self.word_index.get(&word.to_lowercase()).ok_or(
+        let &(start, length) = self.word_index.get(&word.to_lowercase()).ok_or_else(||
                 errors::DictError::WordNotFound(word.into()))?;
         self.dict_reader.fetch_definition(start, length)
     }
