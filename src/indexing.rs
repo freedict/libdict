@@ -68,7 +68,7 @@ pub fn decode_number(word: &str) -> Result<u64, DictError> {
 }
 
 fn parse_line(line: &str, line_number: usize) -> Result<(String, u64, u64), DictError> {
-    let mut split = line.split("\t");
+    let mut split = line.split('\t');
     let word = try!(split.next().ok_or(MissingColumnInIndex(line_number)));
 
     // second column: offset into file
