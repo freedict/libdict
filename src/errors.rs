@@ -72,10 +72,10 @@ impl error::Error for DictError {
         }
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
-            DictError::IoError(ref err) => err.cause(),
-            DictError::Utf8Error(ref err) => err.cause(),
+            DictError::IoError(ref err) => err.source(),
+            DictError::Utf8Error(ref err) => err.source(),
             _ => None,
         }
     }

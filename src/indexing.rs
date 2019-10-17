@@ -31,9 +31,9 @@ pub type Index = HashMap<String, (u64, u64)>;
 #[inline]
 fn get_base(input: char) -> Result<u64, ()> {
     match input {
-        'A' ... 'Z' => Ok((input as u64) - 65), // 'A' should become 0
-        'a' ... 'z' => Ok((input as u64) - 71), // 'a' should become 26, ...
-        '0' ... '9' => Ok((input as u64) + 4), // 0 should become 52
+        'A' ..= 'Z' => Ok((input as u64) - 65), // 'A' should become 0
+        'a' ..= 'z' => Ok((input as u64) - 71), // 'a' should become 26, ...
+        '0' ..= '9' => Ok((input as u64) + 4), // 0 should become 52
         '+' => Ok(62),
         '/' => Ok(63),
         _ => Err(()),

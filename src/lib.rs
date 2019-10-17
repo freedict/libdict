@@ -28,13 +28,6 @@ use self::indexing::Index;
 
 use std::collections::HashMap;
 
-macro_rules! get(
-    ($e:expr) => (match $e {
-        Some(e) => e,
-        None => return None
-    })
-);
-
 /// A dictionary wrapper.
 ///
 /// A dictionary is made up of a `*.dict` or `*.dict.dz` file with the actual content and a
@@ -43,7 +36,7 @@ macro_rules! get(
 /// about the details of the index and the underlying dict format.
 /// For an example, please see the [crate documentation](index.html).
 pub struct Dictionary {
-    dict_reader: Box<DictReader>,
+    dict_reader: Box<dyn DictReader>,
     word_index: HashMap<String, (u64, u64)>
 }
 
@@ -91,7 +84,7 @@ pub fn load_dictionary_from_file(content_fn: &str, index_fn: &str) -> Result<Dic
 /// function allows abstraction from the underlying source by only requiring a
 /// [dictReader](dictreader) as trait object. This way, dictionaries from RAM or similar can be
 /// implemented.
-pub fn load_dictionary(content: Box<DictReader>, index: Index) -> Dictionary {
+pub fn load_dictionary(content: Box<dyn DictReader>, index: Index) -> Dictionary {
     Dictionary { dict_reader: content, word_index: index }
 }
 

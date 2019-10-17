@@ -91,7 +91,7 @@ impl<B: Read + Seek> DictReader for DictReaderRaw<B> {
 ///
 /// The function can return a `DictError`, which can either occur if a I/O error occurs, or when
 /// the GZ compressed file is invalid.
-pub fn load_dict(path: &str) -> Result<Box<DictReader>, DictError> {
+pub fn load_dict(path: &str) -> Result<Box<dyn DictReader>, DictError> {
     if path.ends_with(".dz") {
         let reader = File::open(path)?;
         Ok(Box::new(DictReaderDz::new(reader)?))
