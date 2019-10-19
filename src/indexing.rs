@@ -67,7 +67,7 @@ pub fn decode_number(word: &str) -> Result<u64, DictError> {
     Ok(index)
 }
 
-fn parse_line(line: &str, line_number: usize) -> Result<(String, u64, u64), DictError> {
+fn parse_line(line: &str, line_number: usize) -> Result<(&str, u64, u64), DictError> {
     let mut split = line.split('\t');
     let word = try!(split.next().ok_or(MissingColumnInIndex(line_number)));
 
@@ -79,7 +79,7 @@ fn parse_line(line: &str, line_number: usize) -> Result<(String, u64, u64), Dict
     let length = try!(split.next().ok_or(MissingColumnInIndex(line_number)));
     let length = try!(decode_number(length));
 
-    Ok((word.to_string(), start_offset, length))
+    Ok((word, start_offset, length))
 }
 
 /// Parse the index for a dictionary from a given BufRead compatible object.
@@ -89,7 +89,7 @@ pub fn parse_index<B: BufRead>(br: B) -> Result<Index, DictError> {
     for (line_number, line) in br.lines().enumerate() {
         let line = try!(line);
         let (word, start_offset, length) = try!(parse_line(&line, line_number));
-        index.entry(word.clone()).or_insert((start_offset, length));
+        index.entry(word.to_string()).or_insert((start_offset, length));
     }
 
     Ok(index)
