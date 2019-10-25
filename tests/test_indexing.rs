@@ -1,6 +1,3 @@
-#[cfg(test)]
-
-extern crate dict;
 use dict::indexing::*;
 
 use std::io::Cursor;

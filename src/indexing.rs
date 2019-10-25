@@ -20,8 +20,8 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::fs::File;
 
-use errors::DictError;
-use errors::DictError::*;
+use crate::errors::DictError;
+use crate::errors::DictError::*;
 
 /// Datastructure to hold the word &rarr; (position, length) information.
 pub type Index = HashMap<String, (u64, u64)>;
@@ -69,15 +69,15 @@ pub fn decode_number(word: &str) -> Result<u64, DictError> {
 
 fn parse_line(line: &str, line_number: usize) -> Result<(String, u64, u64), DictError> {
     let mut split = line.split('\t');
-    let word = try!(split.next().ok_or(MissingColumnInIndex(line_number)));
+    let word = split.next().ok_or(MissingColumnInIndex(line_number))?;
 
     // second column: offset into file
-    let start_offset = try!(split.next().ok_or(MissingColumnInIndex(line_number)));
-    let start_offset = try!(decode_number(start_offset));
+    let start_offset = split.next().ok_or(MissingColumnInIndex(line_number))?;
+    let start_offset = decode_number(start_offset)?;
 
     // get entry length
-    let length = try!(split.next().ok_or(MissingColumnInIndex(line_number)));
-    let length = try!(decode_number(length));
+    let length = split.next().ok_or(MissingColumnInIndex(line_number))?;
+    let length = decode_number(length)?;
 
     Ok((word.to_string(), start_offset, length))
 }
@@ -87,8 +87,8 @@ pub fn parse_index<B: BufRead>(br: B) -> Result<Index, DictError> {
     let mut index = HashMap::new();
 
     for (line_number, line) in br.lines().enumerate() {
-        let line = try!(line);
-        let (word, start_offset, length) = try!(parse_line(&line, line_number));
+        let line = line?;
+        let (word, start_offset, length) = parse_line(&line, line_number)?;
         index.entry(word.clone()).or_insert((start_offset, length));
     }
 

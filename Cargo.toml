@@ -2,6 +2,7 @@
 name = "dict"
 version = "0.1.0"
 authors = ["streicher <shumenda |at| gmx |dot| de>"]
+edition = "2018"
 
 [dependencies]
 byteorder = "0.5"

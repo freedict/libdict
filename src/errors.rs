@@ -1,8 +1,6 @@
 //! Errors for the Dict dictionary crate.
 use std::error;
 
-use flate2;
-
 /// Error type, representing the errors which can be returned by the libdict library.
 ///
 /// This enum represents a handful of custom errors and wraps `io:::Error` and

@@ -16,8 +16,6 @@
 //!     println!("{}", latdeu.lookup("ferrugo").unwrap());
 //! }
 //! ```
-extern crate byteorder;
-extern crate flate2;
 
 pub mod dictreader;
 pub mod errors;

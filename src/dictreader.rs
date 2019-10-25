@@ -10,12 +10,11 @@
 //! [the GZip standard](https://tools.ietf.org/html/rfc1952).
 
 use byteorder::*;
-use flate2;
 use std::fs::File;
 use std::io;
 use std::io::{BufReader, BufRead, Read, Seek, SeekFrom};
 
-use errors::DictError;
+use crate::errors::DictError;
 
 /// limit size of a word buffer, so that  malicious index files cannot request to much memory for a
 /// translation
@@ -72,7 +71,7 @@ impl<B: Read + Seek> DictReader for DictReaderRaw<B> {
 
         self.dict_data.seek(SeekFrom::Start(start_offset))?;
         let mut read_data = vec![0; length as usize];
-        let bytes_read = try!(self.dict_data.read(read_data.as_mut_slice())) as u64;
+        let bytes_read = self.dict_data.read(read_data.as_mut_slice())? as u64;
         if bytes_read != length { // reading from end of file?
             return Err(DictError::IoError(io::Error::new(
                             io::ErrorKind::UnexpectedEof, "seek beyond end of file")));

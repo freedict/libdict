@@ -1,6 +1,3 @@
-#[cfg(test)]
-extern crate dict;
-
 use std::fs::File;
 use std::io::{Cursor, Read};
 use std::path::PathBuf;
