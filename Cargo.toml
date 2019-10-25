@@ -4,5 +4,5 @@ version = "0.1.0"
 authors = ["streicher <shumenda |at| gmx |dot| de>"]
 
 [dependencies]
-byteorder = "0.5"
-flate2 = "0.2"
+byteorder = "1.3.2"
+flate2 = "1.0.12"
