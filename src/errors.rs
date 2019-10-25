@@ -24,7 +24,7 @@ pub enum DictError {
     /// A wrapped Utf8Error.
     Utf8Error(::std::string::FromUtf8Error),
     /// errors thrown by the flate2 crate - not really descriptive errors, though.
-    DeflateError(flate2::DataError),
+    DeflateError(flate2::DecompressError),
 }
 
 impl ::std::fmt::Display for DictError {
@@ -92,8 +92,8 @@ impl From<::std::string::FromUtf8Error> for DictError {
     }
 }
 
-impl From<flate2::DataError> for DictError {
-    fn from(err: flate2::DataError) -> DictError {
+impl From<flate2::DecompressError> for DictError {
+    fn from(err: flate2::DecompressError) -> DictError {
         DictError::DeflateError(err)
     }
 }

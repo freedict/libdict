@@ -5,5 +5,5 @@ authors = ["streicher <shumenda |at| gmx |dot| de>"]
 edition = "2018"
 
 [dependencies]
-byteorder = "0.5"
-flate2 = "0.2"
+byteorder = "1.3.2"
+flate2 = "1.0.12"
