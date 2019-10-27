@@ -16,6 +16,7 @@
 //! -   `x` is the index within the array given above, i.e. `'a' == 26`.
 //!
 //! The sum makes up the index.
+use std::path::Path;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::fs::File;
@@ -95,9 +96,9 @@ pub fn parse_index<B: BufRead>(br: B) -> Result<Index, DictError> {
     Ok(index)
 }
 
-/// Parse the index for a dictionary from a given file name.
-pub fn parse_index_from_file(filename: &str) -> Result<Index, DictError> {
-    let file = File::open(filename)?;
+/// Parse the index for a dictionary from a given path.
+pub fn parse_index_from_file<P: AsRef<Path>>(path: P) -> Result<Index, DictError> {
+    let file = File::open(path)?;
     let file = BufReader::new(&file);
     parse_index(file)
 }

@@ -24,6 +24,7 @@ pub mod indexing;
 use self::dictreader::DictReader;
 use self::indexing::Index;
 
+use std::path::Path;
 use std::collections::HashMap;
 
 /// A dictionary wrapper.
@@ -69,7 +70,7 @@ impl Dictionary {
 ///
 /// A dictionary is made of an index and a dictionary (data) file, both are opened from the given
 /// input file names. Gzipped files with the suffix `.dz` will be handled automatically.
-pub fn load_dictionary_from_file(content_fn: &str, index_fn: &str) -> Result<Dictionary,
+pub fn load_dictionary_from_file<P: AsRef<Path>>(content_fn: P, index_fn: P) -> Result<Dictionary,
             errors::DictError> {
     let dreader = dictreader::load_dict(content_fn)?;
     let index = indexing::parse_index_from_file(index_fn)?;

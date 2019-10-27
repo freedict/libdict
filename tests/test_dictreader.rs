@@ -180,7 +180,7 @@ fn test_chunk_count_and_xlen_must_match() {
 fn test_retrieval_of_a_word_which_doesnt_exist_yields_error() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(dictdz, index).unwrap();
     assert!(dict.lookup("testtesttest").is_err());
 }
 
@@ -188,7 +188,7 @@ fn test_retrieval_of_a_word_which_doesnt_exist_yields_error() {
 fn test_retrieval_of_a_word_which_exists_works() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(dictdz, index).unwrap();
     let word = dict.lookup("mater");
     let word = word.unwrap();
     assert!(word.starts_with("mater"));
@@ -198,7 +198,7 @@ fn test_retrieval_of_a_word_which_exists_works() {
 fn test_that_word_from_first_chunk_works() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(dictdz, index).unwrap();
     let word = dict.lookup("amo").unwrap();
     assert!(word.starts_with("amo"));
 }
@@ -207,7 +207,7 @@ fn test_that_word_from_first_chunk_works() {
 fn test_lookup_into_last_chunk_works() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(dictdz, index).unwrap();
     let word = dict.lookup("vultus").unwrap();
     assert!(word.starts_with("vultus"));
 }
@@ -216,7 +216,7 @@ fn test_lookup_into_last_chunk_works() {
 fn test_that_definitions_wrapping_around_chunk_border_are_extracted_correctly() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
     let index = get_asset_path("lat-deu.index");
-    let mut dict = load_dictionary_from_file(dictdz.to_str().unwrap(), &index.to_str().unwrap()).unwrap();
+    let mut dict = load_dictionary_from_file(dictdz, index).unwrap();
     // for the above dictionary, the chunk (or block) length of each uncompressed chunk is 58315;
     // exactly there, the definition circumfero is split into two pieces:
     let word = dict.lookup("circumfero").unwrap();
@@ -242,7 +242,7 @@ fn test_files_with_comment_is_parsed_correctly() {
     newdata.extend(&data[49..]);
 
     let data = dict::dictreader::DictReaderDz::new(Cursor::new(newdata)).unwrap();
-    let index = dict::indexing::parse_index_from_file(get_asset_path("lat-deu.index").to_str().unwrap()).unwrap();
+    let index = dict::indexing::parse_index_from_file(get_asset_path("lat-deu.index")).unwrap();
     let mut dict = dict::load_dictionary(Box::new(data), index);
     let word = dict.lookup("mater");
     let word = word.unwrap();
@@ -265,7 +265,7 @@ fn test_file_without_file_name_is_parsed_correctly() {
     newdata.extend(&data[49..]);
 
     let data = dict::dictreader::DictReaderDz::new(Cursor::new(newdata)).unwrap();
-    let index = dict::indexing::parse_index_from_file(get_asset_path("lat-deu.index").to_str().unwrap()).unwrap();
+    let index = dict::indexing::parse_index_from_file(get_asset_path("lat-deu.index")).unwrap();
     let mut dict = dict::load_dictionary(Box::new(data), index);
     let word = dict.lookup("mater");
     let word = word.unwrap();
@@ -276,7 +276,7 @@ fn test_file_without_file_name_is_parsed_correctly() {
 #[should_panic]
 fn test_that_seek_beyond_end_of_file_is_detected() {
     let dictdz = get_asset_path("lat-deu.dict.dz");
-    let mut dict = dictreader::load_dict(dictdz.to_str().unwrap()).unwrap();
+    let mut dict = dictreader::load_dict(dictdz).unwrap();
     dict.fetch_definition(9999999999u64, 888u64).unwrap();
 }
 
