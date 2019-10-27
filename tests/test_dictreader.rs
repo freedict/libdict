@@ -101,8 +101,8 @@ fn test_gzip_files_without_fextra_panic() {
 
 #[test]
 #[should_panic]
-fn test_that_file_with_invalid_si_bytes_reporged() {
-    // si1si2 are the identificationfor the dictzip extension
+fn test_that_file_with_invalid_si_bytes_is_reported() {
+    // si1si2 are the identification for the dictzip extension
     let mut rsrc = load_resource("lat-deu.dict.dz");
     let mut data = Vec::new();
     rsrc.read_to_end(&mut data).unwrap();

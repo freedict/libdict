@@ -16,7 +16,7 @@ use std::io::{BufReader, BufRead, Read, Seek, SeekFrom};
 
 use crate::errors::DictError;
 
-/// limit size of a word buffer, so that  malicious index files cannot request to much memory for a
+/// limit size of a word buffer, so that malicious index files cannot request too much memory for a
 /// translation
 pub static MAX_BYTES_FOR_BUFFER: u64 = 1_048_576; // no headword definition is larger than 1M
 
@@ -25,7 +25,7 @@ pub static GZ_FEXTRA: u8 = 0b0000_0100;
 /// byte mask to query for the existence of a file name in a `.dz` file
 pub static GZ_FNAME: u8   = 0b0000_1000; // indicates whether a file name is contained in the archive
 /// byte mask to query for the existence of a comment in a `.dz` file
-pub static GZ_COMMENT: u8 = 0b0001_0000; // ndicates, whether a comment is present
+pub static GZ_COMMENT: u8 = 0b0001_0000; // indicates, whether a comment is present
 /// byte mask to detect that a comment is contained in a `.dz` file
 pub static GZ_FHCRC: u8   = 0b0000_0010;
 
@@ -84,7 +84,7 @@ impl<B: Read + Seek> DictReader for DictReaderRaw<B> {
 ///
 /// This function loads a [Dictreader](trait.DictReader.html) from a file and transparently selects
 /// the correct reader using the file type extension, so the callee doesn't need to care about
-/// compression  (`.dz`).
+/// compression (`.dz`).
 ///
 /// # Errors
 ///
@@ -106,7 +106,7 @@ pub fn load_dict(path: &str) -> Result<Box<dyn DictReader>, DictError> {
 
 /// Gzip Dict reader
 ///
-/// This reader can read compressed .dict files. with the file name suffix .dz.
+/// This reader can read compressed .dict files with the file name suffix .dz.
 /// This format is documented in RFC 1952 and in `man dictzip`. An example implementation can be
 /// found in the dict daemon (dictd) in `data.c`.
 pub struct DictReaderDz<B: Read + Seek> {
@@ -138,16 +138,16 @@ impl<B: Read + Seek> DictReaderDz<B> {
         if header[0..2] != [0x1F, 0x8B] {
             return Err(DictError::InvalidFileFormat("Not in gzip format".into(), None));
         }
-    
+
         let flags = &header[3]; // bitmap of gzip attributes
         if (flags & GZ_FEXTRA) == 0 { // check whether FLG.FEXTRA is set
             return Err(DictError::InvalidFileFormat("Extra flag (FLG.FEXTRA) \
                        not set, not in gzip + dzip format".into(), None));
         }
-    
+
         // read XLEN, length of extra FEXTRA field
         let xlen = LittleEndian::read_u16(&header[10..12]);
-    
+
         // read FEXTRA data
         let mut fextra = vec![0u8; xlen as usize];
         buffered_dzdict.read_exact(&mut fextra)?;
@@ -156,7 +156,7 @@ impl<B: Read + Seek> DictReaderDz<B> {
             return Err(DictError::InvalidFileFormat("No dictzip info found in FEXTRA \
                     header (behind XLEN, in SI1SI2 fields)".into(), None));
         }
-    
+
         let length_subfield = LittleEndian::read_u16(&fextra[2..4]);
         assert_eq!(length_subfield, xlen - 4, "the length of the subfield \
                    should be the same as the fextra field, ignoring the \
@@ -166,7 +166,7 @@ impl<B: Read + Seek> DictReaderDz<B> {
              return Err(DictError::InvalidFileFormat("Unimplemented dictzip \
                      version, only ver 1 supported".into(), None));
         }
-    
+
         // before compression, the file is split into evenly-sized chunks and the size information
         // is put right after the version information:
         let uchunk_length = LittleEndian::read_u16(&fextra[6..8]);
@@ -176,7 +176,7 @@ impl<B: Read + Seek> DictReaderDz<B> {
             return Err(DictError::InvalidFileFormat("No compressed chunks in \
                     file or broken header information".into(), None));
         }
-    
+
         // compute number of possible chunks which would fit into the FEXTRA field; used for
         // validity check. first 10 bytes of FEXTRA are header information, the rest are 2-byte,
         // little-endian numbers.
@@ -188,24 +188,24 @@ impl<B: Read + Seek> DictReaderDz<B> {
                       accomodate {}; possibly broken file", chunk_count,
                       numbers_chunks_which_would_fit), None));
         }
-    
+
         // if file name bit set, seek beyond the 0-terminated file name, we don't care
         if (flags & GZ_FNAME) != 0 {
             let mut tmp = Vec::new();
             buffered_dzdict.read_until(b'\0', &mut tmp)?;
         }
-    
+
         // seek past comment, if any
         if (flags & GZ_COMMENT) != 0 {
             let mut tmp = Vec::new();
             buffered_dzdict.read_until(b'\0', &mut tmp)?;
         }
-    
+
         // skip CRC stuff, 2 bytes
         if (flags & GZ_FHCRC) != 0 {
             buffered_dzdict.seek(SeekFrom::Current(2))?;
         }
-    
+
         // save length of each compressed chunk
         let mut chunk_offsets = Vec::with_capacity(chunk_count as usize);
         // save position of last compressed byte (this is NOT EOF, could be followed by CRC checksum)

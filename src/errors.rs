@@ -7,12 +7,12 @@ use std::error;
 /// `string::FromUtf8Error`.
 #[derive(Debug)]
 pub enum DictError {
-    /// Invalid character, e.g. within the index file; the error contains the erorneous character,
-    /// andd optionally line and position.
+    /// Invalid character, e.g. within the index file; the error contains the erroneous character,
+    /// and optionally line and position.
     InvalidCharacter(char, Option<usize>, Option<usize>),
     /// Occurs whenever a line in an index file misses a column.
     MissingColumnInIndex(usize),
-    /// Invalid file format, contains an explanation an an optional path to the
+    /// Invalid file format, contains an explanation an optional path to the
     /// file with the invalid file format.
     InvalidFileFormat(String, Option<String>),
     /// This reports a malicious / malformed index file, which requests a buffer which is too large.
@@ -61,7 +61,7 @@ impl error::Error for DictError {
             DictError::MemoryError => "not enough memory available",
             DictError::WordNotFound(_) => "word not found",
             DictError::MissingColumnInIndex(_) =>
-                    "not enough <tab>-separated columnss given",
+                    "not enough <tab>-separated columns given",
             DictError::InvalidFileFormat(ref _explanation, ref _path) => "could not \
                     determine file format",
             DictError::IoError(ref err) => err.description(),
@@ -79,7 +79,7 @@ impl error::Error for DictError {
     }
 }
 
-// allow seamless coercion from::Error 
+// allow seamless coercion from::Error
 impl From<::std::io::Error> for DictError {
     fn from(err: ::std::io::Error) -> DictError {
         DictError::IoError(err)
