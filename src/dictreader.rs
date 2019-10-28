@@ -12,9 +12,10 @@
 use byteorder::{ByteOrder, LittleEndian};
 use flate2;
 use std::fs::File;
+use std::ffi::OsStr;
 use std::io;
 use std::io::{BufReader, Read, Seek, SeekFrom};
-use std::ops::{Index, Range};
+use std::ops::{Index, Range, RangeFrom};
 use std::path::Path;
 
 use errors::DictError;
@@ -96,7 +97,7 @@ impl<B: Read + Seek> DictReader for DictReaderRaw<B> {
 /// the GZ compressed file is invalid.
 pub fn load_dict<P>(path: P) -> Result<Box<DictReader>, DictError>
 		where P: AsRef<Path> {
-    if path.as_ref().ends_with(".dz") {
+    if path.as_ref().extension() == Some(OsStr::new("dz")) {
         let dzdict = MmappedDict::new(path.as_ref())?;
         Ok(Box::new(DictReaderDz::new(dzdict)?))
     } else {
@@ -137,7 +138,8 @@ struct Chunk {
 
 
 impl<I> DictReaderDz<I> 
-        where I: Index<Range<usize>, Output=[u8]> + Index<usize, Output=u8> {
+        where I: Index<Range<usize>, Output=[u8]> + Index<RangeFrom<usize>,
+                                     Output=[u8]> + Index<usize, Output=u8> {
     /// Get a new DictReader from a Reader.
     pub fn new(dzdict: I) -> Result<DictReaderDz<I>, DictError> {
         if dzdict[0..2] != [0x1F, 0x8B] {
@@ -195,7 +197,7 @@ impl<I> DictReaderDz<I>
         // if file name bit set, seek beyond the 0-terminated file name, we don't care
         if (flags & GZ_FNAME) != 0 {
             // fname starts _after_ xlen field
-            pos_in_buffer += dzdict[0..pos_in_buffer].iter().position(
+            pos_in_buffer += 1 + dzdict[pos_in_buffer..].iter().position(
                 |&x| x == '\0' as u8).ok_or(DictError::InvalidFileFormat(
 					"File name terminator \\0 expected, nothing found.".into(),
 					None))?  as usize
@@ -203,21 +205,17 @@ impl<I> DictReaderDz<I>
     
         // seek past comment, if any
         if (flags & GZ_COMMENT) != 0 {
-            pos_in_buffer += dzdict[0..pos_in_buffer].iter().position(
+            pos_in_buffer += 1 + dzdict[pos_in_buffer..].iter().position(
                 |&x| x == '\0' as u8).unwrap() as usize;
         }
     
         // skip CRC stuff, 2 bytes
         if (flags & GZ_FHCRC) != 0 {
-            println!("has_crc");
             pos_in_buffer += 2;
         }
-            pos_in_buffer += 2;
     
         // save length of each compressed chunk
         let mut chunk_offsets = Vec::with_capacity(chunk_count as usize);
-
-        let end_of_compressed = pos_in_buffer;
 
         {
             // The header bytes from above are followed by the lengths of each
@@ -228,7 +226,7 @@ impl<I> DictReaderDz<I>
             for index in (0..chunks_from_header.len()).filter(|i| (i%2)==0) {
                 let index = index as usize;
                 let compressed_len = LittleEndian::read_u16(&chunks_from_header[index..(index + 2)]) as usize;
-                chunk_offsets.push(end_of_compressed);
+                chunk_offsets.push(pos_in_buffer);
                 pos_in_buffer += compressed_len;
             }
         }
@@ -237,11 +235,11 @@ impl<I> DictReaderDz<I>
 
         // read uncompressed file length, located at  EOF - 8 (or at end of compressed data)
         let uncompressed = LittleEndian::read_i32(
-                &dzdict[end_of_compressed..end_of_compressed+4]);
+                &dzdict[pos_in_buffer..pos_in_buffer+4]);
 
         Ok(DictReaderDz { dzdict: dzdict,
                 chunk_offsets: chunk_offsets,
-                end_compressed_data: end_of_compressed,
+                end_compressed_data: pos_in_buffer,
                 uchunk_length: uchunk_length as usize,
                 ufile_length: uncompressed as u64 })
     }
@@ -271,7 +269,8 @@ impl<I> DictReaderDz<I>
 }
 
 impl<I> DictReader for DictReaderDz<I>
-        where I: Index<Range<usize>, Output=[u8]> + Index<usize, Output=u8> {
+        where I: Index<Range<usize>, Output=[u8]> + Index<RangeFrom<usize>,
+                                     Output=[u8]> + Index<usize, Output=u8> {
     // Fetch definition from the dictionary.
     fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError> {
         if length > MAX_BYTES_FOR_BUFFER {
