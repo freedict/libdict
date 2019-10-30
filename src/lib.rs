@@ -64,6 +64,15 @@ impl Dictionary {
     pub fn contains_unchecked(&self, word: &str) -> bool {
         self.word_index.get(word).is_some()
     }
+
+    /// Get the short name.
+    ///
+    /// It corresponds to the value passed to `dictfmt`'s `-s` flag.
+    pub fn short_name(&mut self) -> Result<String, errors::DictError> {
+        self.lookup("00-database-short")
+            .or_else(|_| self.lookup("00databaseshort"))
+            .map(|s| s.replace("00-database-short", "").trim().to_string())
+    }
 }
 
 /// Load dictionary from given paths
@@ -87,3 +96,21 @@ pub fn load_dictionary(content: Box<dyn DictReader>, index: Index) -> Dictionary
     Dictionary { dict_reader: content, word_index: index }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn example_dictionary() -> Result<Dictionary, errors::DictError> {
+        let path = ::std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                                        .join("tests/assets");
+        load_dictionary_from_file(path.join("lat-deu.dict.dz"),
+                                  path.join("lat-deu.index"))
+    }
+
+    #[test]
+    fn test_getting_short_name() {
+        let mut dict = example_dictionary().unwrap();
+        assert_eq!(dict.short_name().ok(),
+                   Some("Latin - German FreeDict dictionary ver. 0.4".to_string()));
+    }
+}
