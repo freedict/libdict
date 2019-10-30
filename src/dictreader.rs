@@ -10,6 +10,7 @@
 //! [the GZip standard](https://tools.ietf.org/html/rfc1952).
 
 use byteorder::*;
+use std::ffi::OsStr;
 use std::path::Path;
 use std::fs::File;
 use std::io;
@@ -92,7 +93,7 @@ impl<B: Read + Seek> DictReader for DictReaderRaw<B> {
 /// The function can return a `DictError`, which can either occur if a I/O error occurs, or when
 /// the GZ compressed file is invalid.
 pub fn load_dict<P: AsRef<Path>>(path: P) -> Result<Box<dyn DictReader>, DictError> {
-    if path.as_ref().extension().and_then(|ext| ext.to_str()) == Some("dz") {
+    if path.as_ref().extension() == Some(OsStr::new("dz")) {
         let reader = File::open(path)?;
         Ok(Box::new(DictReaderDz::new(reader)?))
     } else {
