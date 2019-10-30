@@ -7,7 +7,7 @@
 //!
 //! The usage is straight forward:
 //!
-//! ```
+//! ```rust,no_run
 //! fn main() {
 //!     let index_file = "/usr/share/dictd/freedict-lat-deu.index";
 //!     let dict_file = "/usr/share/dictd/freedict-lat-deu.dict.dz";
@@ -57,7 +57,7 @@ impl Dictionary {
 
     /// Check whether a word is contained in the index
     pub fn contains(&self, word: &str) -> bool {
-        self.word_index.contains_key(&word.to_lowercase()).is_some()
+        self.word_index.contains_key(&word.to_lowercase())
     }
 
     /// Case-sensitive member check.

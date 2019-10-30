@@ -8,7 +8,7 @@
 //! transparency. Please not that the current design also allows using a `Vec<u8>` as data source
 //! without any wrapper.
 use memmap;
-use std::ops::{Index, Range};
+use std::ops::{Index, Range, RangeFrom};
 use std::fs::File;
 use std::path::Path;
 
@@ -38,7 +38,23 @@ impl Index<Range<usize>> for MmappedDict {
     type Output = [u8];
 
     /// Retrieve the mapped memory region as a byte slice
-    fn index(&self, range: Range<usize>) -> &[u8] {
+    fn index(&self, range: Range<usize>) -> &Self::Output {
+        // Mmap::as_slice() is unsafe because the caller must guarantee that the
+        // referenced memory is never concurrently modified. This is ensured
+        // because new() always creates a read-only memory map. Thus, it is okay
+        // to wrap this call in a safe method.
+        unsafe {
+            &self.mmap.get_unchecked(range)
+        }
+    }
+}
+
+// Ease the extraction from byte ranges from raw memory
+impl Index<RangeFrom<usize>> for MmappedDict {
+    type Output = [u8];
+
+    /// Retrieve the mapped memory region as a byte slice
+    fn index(&self, range: RangeFrom<usize>) -> &Self::Output {
         // Mmap::as_slice() is unsafe because the caller must guarantee that the
         // referenced memory is never concurrently modified. This is ensured
         // because new() always creates a read-only memory map. Thus, it is okay
