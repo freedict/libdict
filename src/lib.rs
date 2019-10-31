@@ -67,11 +67,16 @@ impl Dictionary {
 
     /// Get the short name.
     ///
-    /// It corresponds to the value passed to `dictfmt`'s `-s` flag.
+    /// This returns the short name of a dictionary. This corresponds to the
+    /// value passed to the `-s` option of `dictfmt`.
     pub fn short_name(&mut self) -> Result<String, errors::DictError> {
         self.lookup("00-database-short")
             .or_else(|_| self.lookup("00databaseshort"))
-            .map(|s| s.replace("00-database-short", "").trim().to_string())
+            // Some dictionaries contain 00-database-short in their entry, others don't:
+            .map(|s| match s.find("short") {
+                Some(idx) => s[idx + 5..].trim(),
+                None => s.trim(),
+            }.to_string())
     }
 }
 
