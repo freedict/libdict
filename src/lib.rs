@@ -72,11 +72,15 @@ impl Dictionary {
     pub fn short_name(&mut self) -> Result<String, errors::DictError> {
         self.lookup("00-database-short")
             .or_else(|_| self.lookup("00databaseshort"))
-            // Some dictionaries contain 00-database-short in their entry, others don't:
-            .map(|s| match s.find("short") {
-                Some(idx) => s[idx + 5..].trim(),
-                None => s.trim(),
-            }.to_string())
+            // Some dictionaries contain the headword in their entry, others don't:
+            .map(|def| {
+                let start = if def.starts_with("00-database-short") {
+                    17
+                } else {
+                    0
+                };
+                def[start..].trim().to_string()
+            })
     }
 }
 
