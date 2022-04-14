@@ -16,10 +16,12 @@ Example Usage
 Citing from the crates documentation:
 
 ```
+use dict::Dict;
+
 fn main() {
     let index_file = "/usr/share/dictd/freedict-lat-deu.index";
     let dict_file = "/usr/share/dictd/freedict-lat-deu.dict.dz";
-    let mut latdeu = dict::load_dictionary_from_file(dict_file, index_file).unwrap();
+    let mut latdeu = Dict::from_file(dict_file, index_file).unwrap();
     // hey: rust!
     println!("{}", latdeu.lookup("ferrugo").unwrap());
 }
