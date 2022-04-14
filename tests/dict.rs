@@ -290,3 +290,41 @@ fn seek_beyond_end_of_file() {
     let mut dict = Compressed::new(data).unwrap();
     dict.fetch_definition(9999999999u64, 888u64).unwrap();
 }
+
+
+// Mmap tests
+
+#[test]
+fn get_word_from_first_chunk_mmap() {
+    let dict_path = get_resource("lat-deu.dict.dz");
+    let index_path = get_resource("lat-deu.index");
+    let mut dict = Dict::from_file_mmap(dict_path, index_path).unwrap();
+    let word = dict.lookup("amo").unwrap();
+
+    assert!(word.starts_with("amo"));
+}
+
+#[test]
+fn get_word_from_last_chunk_mmap() {
+    let dict_path = get_resource("lat-deu.dict.dz");
+    let index_path = get_resource("lat-deu.index");
+    let mut dict = Dict::from_file_mmap(dict_path, index_path).unwrap();
+    let word = dict.lookup("vultus").unwrap();
+
+    assert!(word.starts_with("vultus"));
+}
+
+#[test]
+fn get_word_split_at_chunk_border_mmap() {
+    let dict_path = get_resource("lat-deu.dict.dz");
+    let index_path = get_resource("lat-deu.index");
+    let mut dict = Dict::from_file_mmap(dict_path, index_path).unwrap();
+    let word = dict.lookup("circumfero").unwrap();
+
+    // For the above dictionary, the chunk (or block) length of each uncompressed chunk is 58315;
+    // Exactly there, the definition circumfero is split into two pieces:
+    assert!(word.starts_with("circumfero"));
+    assert!(word.ends_with("herumtreiben\n"));
+}
+
+
