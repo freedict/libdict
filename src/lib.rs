@@ -24,8 +24,10 @@ mod error;
 pub mod index;
 mod reader;
 mod uncompressed;
+mod mmap;
 pub use compressed::Compressed;
 pub use error::DictError;
+use mmap::MmapCursor;
 pub use reader::{DictReader, MAX_BYTES_FOR_BUFFER};
 pub use uncompressed::Uncompressed;
 pub use index::Index;
@@ -48,16 +50,16 @@ pub struct Dict {
 }
 
 impl Dict {
+    /// Creates a Dict with a BufReader.
     pub fn from_file<P: AsRef<Path>>(dict_path: P, index_path: P) -> Result<Self, DictError> {
         let dict_reader = BufReader::new(File::open(&dict_path)?);
         let index_reader = BufReader::new(File::open(&index_path)?);
 
-        let reader: Box<dyn DictReader> =
-            if dict_path.as_ref().extension() == Some(OsStr::new("dz")) {
-                Box::new(Compressed::new(dict_reader)?)
-            } else {
-                Box::new(Uncompressed::new(dict_reader)?)
-            };
+        let reader: Box<dyn DictReader> = if dict_path.as_ref().extension() == Some(OsStr::new("dz")) {
+            Box::new(Compressed::new(dict_reader)?)
+        } else {
+            Box::new(Uncompressed::new(dict_reader)?)
+        };
 
         Ok(Self {
             reader,
@@ -65,6 +67,28 @@ impl Dict {
         })
     }
 
+    /// Creates a Dict with an Mmap reader.
+    ///
+    /// # Note
+    /// In order for updates to the dictionary to happen soundly, the updater must use advisory
+    /// locks to exclusively lock the dictionary.
+    pub fn from_file_mmap<P: AsRef<Path>>(dict_path: P, index_path: P) -> Result<Self, DictError> {
+        let dict_reader = MmapCursor::new(&dict_path)?;
+        let index_reader = BufReader::new(File::open(&index_path)?);
+        
+        let reader: Box<dyn DictReader> = if dict_path.as_ref().extension() == Some(OsStr::new("dz")) {
+            Box::new(Compressed::new(dict_reader)?)
+        } else {
+            Box::new(Uncompressed::new(dict_reader)?)
+        };
+
+        Ok(Self {
+            reader,
+            index: Index::new(index_reader)?,
+        })
+    }
+
+    /// Creates a Dict from an existing DictReader and Index.
     pub fn from_existing(reader: Box<dyn DictReader>, index: Index) -> Result<Self, DictError> {
         Ok(Self { reader, index })
     }
@@ -136,11 +160,26 @@ mod tests {
         File::open(res).unwrap()
     }
 
+    fn resource_over_bufreader(file: File) -> BufReader<File> {
+        BufReader::new(file)
+    }
+
+    fn resource_over_mmap(file: File) -> MmapCursor {
+        MmapCursor::from_file(file).unwrap()
+    }
+
     fn example_dictionary() -> Result<Dict, DictError> {
         let dict = get_asset_path().join("lat-deu.dict.dz");
         let index = get_asset_path().join("lat-deu.index");
 
         Dict::from_file(dict, index)
+    }
+
+    fn example_dictionary_mmap() -> Result<Dict, DictError> {
+        let dict = get_asset_path().join("lat-deu.dict.dz");
+        let index = get_asset_path().join("lat-deu.index");
+
+        Dict::from_file_mmap(dict, index)
     }
 
     #[test]
@@ -155,7 +194,25 @@ mod tests {
 
     #[test]
     fn test_number_of_parsed_chunks_is_correct() {
-        let dict_file = load_resource("lat-deu.dict.dz");
+        let dict_file = resource_over_bufreader(load_resource("lat-deu.dict.dz"));
+        let reader = Compressed::new(dict_file).unwrap();
+
+        assert_eq!(reader.chunk_offsets.len(), 7);
+    }
+
+    #[test]
+    fn test_getting_short_name_mmap() {
+        let mut dict = example_dictionary_mmap().unwrap();
+
+        assert_eq!(
+            dict.short_name().ok(),
+            Some("Latin - German FreeDict dictionary ver. 0.4".to_string())
+        );
+    }
+
+    #[test]
+    fn test_number_of_parsed_chunks_is_correct_mmap() {
+        let dict_file = resource_over_mmap(load_resource("lat-deu.dict.dz"));
         let reader = Compressed::new(dict_file).unwrap();
 
         assert_eq!(reader.chunk_offsets.len(), 7);
