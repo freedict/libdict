@@ -2,6 +2,7 @@ use super::Index;
 use crate::DictError;
 use std::collections::HashMap;
 use std::io::BufRead;
+use DictError::*;
 
 #[derive(Default)]
 struct Context {
@@ -25,22 +26,16 @@ fn parse_line(ctx: &mut Context, line: String) -> Result<(String, u64, u64), Dic
     let mut split = line.split('\t');
 
     // 1st column
-    let word = split
-        .next()
-        .ok_or(DictError::MissingColumnInIndex(ctx.line))?;
+    let word = split.next().ok_or(MissingColumnInIndex(ctx.line))?;
 
     // 2nd column - offset into file
     ctx.pos = word.len();
-    let s = split
-        .next()
-        .ok_or(DictError::MissingColumnInIndex(ctx.line))?;
+    let s = split.next().ok_or(MissingColumnInIndex(ctx.line))?;
     let start_offset = decode_number(&ctx, s)?;
 
     // 3rd column - entry length
     ctx.pos += s.len();
-    let s = split
-        .next()
-        .ok_or(DictError::MissingColumnInIndex(ctx.line))?;
+    let s = split.next().ok_or(MissingColumnInIndex(ctx.line))?;
     let length = decode_number(&ctx, s)?;
 
     // Advance context to new line
@@ -66,6 +61,6 @@ fn get_base(ctx: &Context, ch: char) -> Result<u64, DictError> {
         '0'..='9' => Ok((ch as u64) + 4),  // 0 should become 52
         '+' => Ok(62),
         '/' => Ok(63),
-        _ => Err(DictError::InvalidCharacter(ch, ctx.line, ctx.pos)),
+        _ => Err(InvalidCharacter(ch, ctx.line, ctx.pos)),
     }
 }

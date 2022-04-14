@@ -1,5 +1,4 @@
 mod parsing;
-pub use parsing::parse;
 
 use crate::DictError;
 use std::{collections::HashMap, io::BufRead};
@@ -13,3 +12,4 @@ impl Index {
         parsing::parse(reader)
     }
 }
+

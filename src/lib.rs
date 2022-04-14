@@ -28,8 +28,8 @@ pub use compressed::Compressed;
 pub use error::DictError;
 pub use reader::{DictReader, MAX_BYTES_FOR_BUFFER};
 pub use uncompressed::Uncompressed;
+pub use index::Index;
 
-use crate::index::Index;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::BufReader;

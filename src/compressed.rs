@@ -1,6 +1,6 @@
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt};
 use rassert_rs::rassert;
-use std::io::{self, BufRead, BufReader, Read, Seek, SeekFrom};
+use std::io::{self, Read, Seek, SeekFrom};
 
 use super::{DictError, DictReader, MAX_BYTES_FOR_BUFFER};
 use DictError::*;

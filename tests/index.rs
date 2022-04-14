@@ -7,20 +7,20 @@ use std::io::Cursor;
 #[should_panic]
 fn invalid_line() {
     let reader = Cursor::new("blabla\nblublbub yo");
-    index::parse(reader).unwrap();
+    Index::new(reader).unwrap();
 }
 
 #[test]
 #[should_panic]
 fn invalid_column() {
     let reader = Cursor::new("only one\t(tab) character");
-    index::parse(reader).unwrap();
+    Index::new(reader).unwrap();
 }
 
 #[test]
 fn good_line() {
     let reader = Cursor::new("word\toffset\tlength");
-    let index = index::parse(reader).unwrap();
+    let index = Index::new(reader).unwrap();
 
     assert_eq!(
         *index.words.get("word").unwrap(),
@@ -31,7 +31,7 @@ fn good_line() {
 #[test]
 fn two_entries_parsed() {
     let reader = Cursor::new("word\toffset\tlength\nanother\ta0b\tc");
-    let index = index::parse(reader).unwrap();
+    let index = Index::new(reader).unwrap();
 
     assert_eq!(
         *index.words.get("word").unwrap(),
@@ -44,5 +44,5 @@ fn two_entries_parsed() {
 #[should_panic]
 fn number_parsing_fails() {
     let reader = Cursor::new("valid word\tinvalid_offset\tDA");
-    index::parse(reader).unwrap();
+    Index::new(reader).unwrap();
 }
