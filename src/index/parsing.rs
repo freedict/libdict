@@ -1,8 +1,6 @@
-use super::Index;
-use crate::DictError;
-use std::collections::HashMap;
+use super::{Entry, IndexError, metadata::MetadataIndex, Location};
 use std::io::BufRead;
-use DictError::*;
+use IndexError::*;
 
 #[derive(Default)]
 struct Context {
@@ -10,19 +8,68 @@ struct Context {
     pos: usize,
 }
 
-pub fn parse<R: BufRead>(reader: R) -> Result<Index, DictError> {
+pub fn parse_metadata(reader: &mut impl BufRead) -> Result<MetadataIndex, IndexError> {
+    let mut metadata = MetadataIndex::default();
     let mut ctx = Context::default();
-    let mut words = HashMap::new();
+    let mut line = String::new();
+    let mut reading_info = false;
 
-    for line in reader.lines() {
-        let (word, start_offset, length) = parse_line(&mut ctx, line?)?;
-        words.insert(word, (start_offset, length));
+    while let Ok(num_read) = reader.read_line(&mut line) {
+        if num_read == 0 { break }
+
+        let entry = parse_line(&mut ctx, line.trim_end())?;
+
+        let info_section = if entry.headword.starts_with("00-database-") {
+            Some(&entry.headword[12..])
+        } else if entry.headword.starts_with("00database") {
+            Some(&entry.headword[10..])
+        } else {
+            None
+        };
+
+        if let Some(info_section) = info_section {
+            match info_section {
+                "info" => metadata.info = Some(entry.location),
+                "short" => metadata.short_name = Some(entry.location),
+                "url" => metadata.url = Some(entry.location),
+                "allchars" => metadata.all_chars = true,
+                s if s.contains("case") => metadata.case_sensitive = true,
+                s if s.contains("dictfmt") => metadata.should_normalize = true,
+                _ => {} // Ignore if there is an unsupported metadata entry
+            }
+
+            reading_info = true;
+        } else {
+            if reading_info { break }
+        }
+
+        line.clear();
     }
 
-    Ok(Index { words })
+    Ok(metadata)
 }
 
-fn parse_line(ctx: &mut Context, line: String) -> Result<(String, u64, u64), DictError> {
+pub fn parse(reader: &mut impl BufRead) -> Result<Vec<Entry>, IndexError> {
+    let mut ctx = Context::default();
+    let mut entries = Vec::new();
+    let mut line = String::new();
+
+    while let Ok(num_read) = reader.read_line(&mut line) {
+        if num_read == 0 { break }
+
+        let entry = parse_line(&mut ctx, line.trim_end())?;
+        line.clear();
+        
+        // Ignore metadata entries
+        if entry.headword.starts_with("00") { continue }
+
+        entries.push(entry);
+    }
+
+    Ok(entries)
+}
+
+fn parse_line(ctx: &mut Context, line: &str) -> Result<Entry, IndexError> {
     let mut split = line.split('\t');
 
     // 1st column
@@ -31,21 +78,25 @@ fn parse_line(ctx: &mut Context, line: String) -> Result<(String, u64, u64), Dic
     // 2nd column - offset into file
     ctx.pos = word.len();
     let s = split.next().ok_or(MissingColumnInIndex(ctx.line))?;
-    let start_offset = decode_number(&ctx, s)?;
+    let offset = decode_number(&ctx, s)?;
 
     // 3rd column - entry length
     ctx.pos += s.len();
     let s = split.next().ok_or(MissingColumnInIndex(ctx.line))?;
-    let length = decode_number(&ctx, s)?;
+    let size = decode_number(&ctx, s)?;
+    let location = Location { offset, size };
+
+    // 4th column (optional) - original headword
+    let original = split.next().map(String::from);
 
     // Advance context to new line
     ctx.line += 1;
     ctx.pos = 0;
 
-    Ok((word.into(), start_offset, length))
+    Ok(Entry { headword: word.into(), location, original })
 }
 
-fn decode_number(ctx: &Context, s: &str) -> Result<u64, DictError> {
+fn decode_number(ctx: &Context, s: &str) -> Result<u64, IndexError> {
     let mut index = 0u64;
     for (i, ch) in s.chars().rev().enumerate() {
         index += get_base(ctx, ch)? * 64u64.pow(i as u32);
@@ -54,7 +105,7 @@ fn decode_number(ctx: &Context, s: &str) -> Result<u64, DictError> {
     Ok(index)
 }
 
-fn get_base(ctx: &Context, ch: char) -> Result<u64, DictError> {
+fn get_base(ctx: &Context, ch: char) -> Result<u64, IndexError> {
     match ch {
         'A'..='Z' => Ok((ch as u64) - 65), // 'A' should become 0
         'a'..='z' => Ok((ch as u64) - 71), // 'a' should become 26

@@ -1,3 +1,5 @@
+use crate::index::Location;
+
 use super::{DictError, DictReader, MAX_BYTES_FOR_BUFFER};
 use rassert_rs::rassert;
 use std::io::{self, Read, Seek, SeekFrom};
@@ -6,30 +8,30 @@ use DictError::*;
 /// Uncompressed Dict reader
 ///
 /// This reader can read uncompressed .dict files.
-pub struct Uncompressed<B: Read + Seek> {
-    pub(crate) buf: B,
+pub struct Uncompressed<R: Read + Seek> {
+    pub(crate) reader: R,
     pub(crate) length: u64,
 }
 
-impl<B: Read + Seek> Uncompressed<B> {
-    pub fn new(mut buf: B) -> Result<Self, DictError> {
-        let length = buf.seek(SeekFrom::End(0))?;
+impl<R: Read + Seek> Uncompressed<R> {
+    pub fn new(mut reader: R) -> Result<Self, DictError> {
+        let length = reader.seek(SeekFrom::End(0))?;
 
-        Ok(Self { buf, length })
+        Ok(Self { reader, length })
     }
 }
 
 impl<B: Read + Seek> DictReader for Uncompressed<B> {
-    fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError> {
-        rassert!(length <= MAX_BYTES_FOR_BUFFER, MemoryError);
-        rassert!(start_offset + length <= self.length, IoError(io::Error::new(io::ErrorKind::UnexpectedEof,
+    fn fetch_definition(&mut self, location: Location) -> Result<String, DictError> {
+        rassert!(location.size <= MAX_BYTES_FOR_BUFFER, MemoryError);
+        rassert!(location.offset + location.size <= self.length, IoError(io::Error::new(io::ErrorKind::UnexpectedEof,
             "Seek beyond the end of uncompressed data was requested."
         )));
 
-        self.buf.seek(SeekFrom::Start(start_offset))?;
-        let mut read_data = vec![0; length as usize];
-        let bytes_read = self.buf.read(&mut read_data)? as u64;
-        rassert!(bytes_read == length, IoError(io::Error::new(io::ErrorKind::UnexpectedEof,
+        self.reader.seek(SeekFrom::Start(location.offset))?;
+        let mut read_data = vec![0; location.size as usize];
+        let bytes_read = self.reader.read(&mut read_data)? as u64;
+        rassert!(bytes_read == location.size, IoError(io::Error::new(io::ErrorKind::UnexpectedEof,
             "Seek beyond end of file"
         )));
 
