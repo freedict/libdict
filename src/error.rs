@@ -1,5 +1,6 @@
 use std::io;
 use std::string::FromUtf8Error;
+use crate::IndexError;
 
 /// Error type, representing the errors which can be returned by the libdict library.
 ///
@@ -7,14 +8,6 @@ use std::string::FromUtf8Error;
 /// `string::FromUtf8Error`.
 #[derive(Debug, thiserror::Error)]
 pub enum DictError {
-    /// Invalid character within the index file. Contains detailed positions within the index file.
-    #[error("Invalid character '{0}' found on line: {1} at position {2}.")]
-    InvalidCharacter(char, usize, usize),
-
-    /// Occurs whenever a line in an index file misses a column.
-    #[error("Not enough tab-separated columns in index file, expected 3. Line: {0}")]
-    MissingColumnInIndex(usize),
-
     /// Invalid file format. Contains additional context of the error.
     #[error("Encountered an invalid file format. Context: {0:?}")]
     InvalidFileFormat(String),
@@ -22,10 +15,6 @@ pub enum DictError {
     /// This reports a malicious/malformed index file, which requests a buffer which is too large.
     #[error("Requested too much memory. Headword definitions are never larger than 1 MB. The index file is malicious or malformed.")]
     MemoryError,
-
-    /// This reports words which are not present in the dictionary.
-    #[error("Word \"{0}\" not found.")]
-    WordNotFound(String),
 
     /// A wrapped io::Error.
     #[error("Encountered an IO error.")]
@@ -38,4 +27,8 @@ pub enum DictError {
     /// Errors thrown by the flate2 crate - not really descriptive errors, though.
     #[error("Encountered a decompression error.")]
     Deflate(#[from] flate2::DecompressError),
+
+    /// A wrapped IndexError.
+    #[error("Encountered an index error.")]
+    IndexError(#[from] IndexError),
 }

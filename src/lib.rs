@@ -14,8 +14,9 @@
 //!     let index_file = "/usr/share/dictd/freedict-lat-deu.index";
 //!     let dict_file = "/usr/share/dictd/freedict-lat-deu.dict.dz";
 //!     let mut latdeu = Dict::from_file(dict_file, index_file).unwrap();
-//!     // hey: rust!
-//!     println!("{}", latdeu.lookup("ferrugo").unwrap());
+//!
+//!     // Prints out the results of the lookup
+//!     println!("{:?}", latdeu.lookup("ferrugo", false).unwrap());
 //! }
 //! ```
 
@@ -26,9 +27,10 @@ mod reader;
 mod uncompressed;
 pub use compressed::Compressed;
 pub use error::DictError;
+use index::{IndexReader, Metadata};
 pub use reader::{DictReader, MAX_BYTES_FOR_BUFFER};
 pub use uncompressed::Uncompressed;
-pub use index::Index;
+pub use index::{Index, IndexError};
 
 use std::ffi::OsStr;
 use std::fs::File;
@@ -43,8 +45,14 @@ use std::path::Path;
 /// about the details of the index and the underlying dict format.
 /// For an example, please see the [crate documentation](index.html).
 pub struct Dict {
-    pub(crate) reader: Box<dyn DictReader>,
-    pub(crate) index: Index,
+    pub(crate) dict: Box<dyn DictReader>,
+    pub(crate) index: Box<dyn IndexReader>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct LookupResult {
+    pub headword: String,
+    pub definition: String,
 }
 
 impl Dict {
@@ -52,21 +60,22 @@ impl Dict {
         let dict_reader = BufReader::new(File::open(&dict_path)?);
         let index_reader = BufReader::new(File::open(&index_path)?);
 
-        let reader: Box<dyn DictReader> =
-            if dict_path.as_ref().extension() == Some(OsStr::new("dz")) {
-                Box::new(Compressed::new(dict_reader)?)
-            } else {
-                Box::new(Uncompressed::new(dict_reader)?)
-            };
+        let mut dict: Box<dyn DictReader> = if dict_path.as_ref().extension() == Some(OsStr::new("dz")) {
+            Box::new(Compressed::new(dict_reader)?)
+        } else {
+            Box::new(Uncompressed::new(dict_reader)?)
+        };
+
+        let index = Box::new(Index::new_full(index_reader, &mut dict)?);
 
         Ok(Self {
-            reader,
-            index: Index::new(index_reader)?,
+            dict,
+            index,
         })
     }
 
-    pub fn from_existing(reader: Box<dyn DictReader>, index: Index) -> Result<Self, DictError> {
-        Ok(Self { reader, index })
+    pub fn from_existing(dict: Box<dyn DictReader>, index: Box<dyn IndexReader>) -> Result<Self, DictError> {
+        Ok(Self { dict, index })
     }
 
     /// Look up a word in a dictionary.
@@ -74,44 +83,22 @@ impl Dict {
     /// Words are looked up in the index and then retrieved from the dict file. If no word was
     /// found, `DictError::WordNotFound` is returned. Other errors all result from the parsing of
     /// the underlying files.
-    pub fn lookup(&mut self, word: &str) -> Result<String, DictError> {
-        let &(start, length) = self
-            .index
-            .words
-            .get(&word.to_lowercase())
-            .ok_or_else(|| DictError::WordNotFound(word.into()))?;
-        self.reader.fetch_definition(start, length)
+    pub fn lookup(&mut self, word: &str, fuzzy: bool) -> Result<Vec<LookupResult>, DictError> {
+        let entries = self.index.find(word, fuzzy)?;
+
+        let mut results = Vec::new();
+        for entry in entries {
+            results.push(LookupResult {
+                headword: entry.headword,
+                definition: self.dict.fetch_definition(entry.location)?,
+            });
+        }
+
+        Ok(results)
     }
 
-    /// Check whether a word is contained in the index
-    pub fn contains(&self, word: &str) -> bool {
-        self.index.words.get(&word.to_lowercase()).is_some()
-    }
-
-    /// Case-sensitive member check.
-    ///
-    /// This will check whether the given word is contained in the index, without checking whether
-    /// it's lower case or not. This can help to avoid an additional allocation, if the caller can
-    /// be sure that the string is already lower case.
-    pub fn contains_unchecked(&self, word: &str) -> bool {
-        self.index.words.get(word).is_some()
-    }
-
-    /// Get the short name.
-    ///
-    /// This returns the short name of a dictionary. This corresponds to the
-    /// value passed to the `-s` option of `dictfmt`.
-    pub fn short_name(&mut self) -> Result<String, DictError> {
-        self.lookup("00-database-short")
-            .or_else(|_| self.lookup("00databaseshort"))
-            .map(|def| {
-                let start = if def.starts_with("00-database-short") {
-                    17
-                } else {
-                    0
-                };
-                def[start..].trim().to_string()
-            })
+    pub fn metadata(&self) -> &Metadata {
+        self.index.metadata()
     }
 }
 
@@ -143,12 +130,30 @@ mod tests {
         Dict::from_file(dict, index)
     }
 
+    fn custom_dictionary(dict_path: &str, index_path: &str) -> Result<Dict, DictError> {
+        let dict = get_asset_path().join(dict_path);
+        let index = get_asset_path().join(index_path);
+
+        Dict::from_file(dict, index)
+    }
+
+    fn lookup_dict(dict: &mut Dict, word: &str, expected: &Vec<LookupResult>) {
+        let results = dict.lookup(word, true).unwrap();
+        assert_eq!(&results, expected);
+    }
+
+    fn lookup_dict_exact(dict: &mut Dict, word: &str, expected: &Vec<LookupResult>) {
+        let results = dict.lookup(word, false).unwrap();
+        assert_eq!(&results, expected);
+    }
+
+
     #[test]
     fn test_getting_short_name() {
-        let mut dict = example_dictionary().unwrap();
+        let dict = example_dictionary().unwrap();
 
         assert_eq!(
-            dict.short_name().ok(),
+            dict.metadata().short_name,
             Some("Latin - German FreeDict dictionary ver. 0.4".to_string())
         );
     }
@@ -159,6 +164,65 @@ mod tests {
         let reader = Compressed::new(dict_file).unwrap();
 
         assert_eq!(reader.chunk_offsets.len(), 7);
+    }
+
+    #[test]
+    fn test_dictionary_lookup_case_insensitive() {
+        let mut dict = custom_dictionary("case_insensitive_dict.dict", "case_insensitive_dict.index").unwrap();
+        let expected = vec![
+            LookupResult { headword: "bar".into(), definition: "Bar\ntest for case-sensitivity\n".into() },
+        ];
+        dbg!(&dict.metadata().case_sensitive);
+
+        lookup_dict_exact(&mut dict, "bar", &expected);
+        lookup_dict_exact(&mut dict, "Bar", &expected);
+
+        let expected = vec![
+            LookupResult { headword: "straße".into(), definition: "straße\ntest for non-latin case-sensitivity\n".into() },
+        ];
+
+        lookup_dict_exact(&mut dict, "straße", &expected);
+    }
+
+    #[test]
+    fn test_dictionary_lookup_case_insensitive_fuzzy() {
+        let mut dict = custom_dictionary("case_insensitive_dict.dict", "case_insensitive_dict.index").unwrap();
+        let expected = vec![
+            LookupResult { headword: "bar".into(), definition: "Bar\ntest for case-sensitivity\n".into() },
+        ];
+
+        lookup_dict(&mut dict, "ba", &expected);
+    }
+
+    #[test]
+    fn test_dictionary_lookup_case_sensitive() {
+        let mut dict = custom_dictionary("case_sensitive_dict.dict", "case_sensitive_dict.index").unwrap();
+        let expected = vec![
+            LookupResult { headword: "Bar".into(), definition: "Bar\ntest for case-sensitivity\n".into() },
+        ];
+
+        lookup_dict_exact(&mut dict, "Bar", &expected);
+
+        let expected = vec![
+            LookupResult { headword: "straße".into(), definition: "straße\ntest for non-latin case-sensitivity\n".into() },
+        ];
+
+        lookup_dict_exact(&mut dict, "straße", &expected);
+
+        assert!(dict.lookup("bar", false).is_err());
+        assert!(dict.lookup("strasse", false).is_err());
+    }
+
+    #[test]
+    fn test_dictionary_lookup_case_sensitive_fuzzy() {
+        let mut dict = custom_dictionary("case_sensitive_dict.dict", "case_sensitive_dict.index").unwrap();
+        let expected = vec![
+            LookupResult { headword: "Bar".into(), definition: "Bar\ntest for case-sensitivity\n".into() },
+        ];
+
+        lookup_dict(&mut dict, "Ba", &expected);
+
+        assert!(dict.lookup("ba", true).is_err());
     }
 }
 

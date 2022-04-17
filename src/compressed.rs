@@ -2,6 +2,8 @@ use byteorder::{ByteOrder, LittleEndian, ReadBytesExt};
 use rassert_rs::rassert;
 use std::io::{self, Read, Seek, SeekFrom};
 
+use crate::index::Location;
+
 use super::{DictError, DictReader, MAX_BYTES_FOR_BUFFER};
 use DictError::*;
 
@@ -10,9 +12,9 @@ use DictError::*;
 /// This reader can read compressed .dict files with the file name suffix .dz.
 /// This format is documented in RFC 1952 and in `man dictzip`. An example implementation can be
 /// found in the dict daemon (dictd) in `data.c`.
-pub struct Compressed<B: Read + Seek> {
+pub struct Compressed<R: Read + Seek> {
     /// Compressed buffer
-    pub(crate) buf: B,
+    pub(crate) reader: R,
 
     /// Length of an uncompressed chunk
     pub(crate) uchunk_length: usize,
@@ -46,12 +48,12 @@ struct Chunk {
     length: usize,
 }
 
-impl<B: Read + Seek> Compressed<B> {
-    pub fn new(mut buf: B) -> Result<Self, DictError> {
+impl<R: Read + Seek> Compressed<R> {
+    pub fn new(mut reader: R) -> Result<Self, DictError> {
         let mut header = vec![0; 12];
 
         // Check header
-        buf.read_exact(&mut header)?;
+        reader.read_exact(&mut header)?;
         rassert!(&header[0..2] == &[0x1F, 0x8B], InvalidFileFormat("Not in gzip format".into()));
 
         // Check for FEXTRA flag
@@ -63,7 +65,7 @@ impl<B: Read + Seek> Compressed<B> {
 
         // Read FEXTRA field
         let mut fextra = vec![0; xlen as usize];
-        buf.read_exact(&mut fextra)?;
+        reader.read_exact(&mut fextra)?;
         rassert!(&fextra[0..2] == b"RA", InvalidFileFormat("No dictzip info found in FEXTRA header (behind XLEN, in SI1SI2 fields".into()));
 
         // Check subfield length
@@ -94,17 +96,17 @@ impl<B: Read + Seek> Compressed<B> {
 
         // If filename bit set, skip nul-terminated filename
         if flags & GZ_FNAME != 0 {
-            while buf.read_u8()? != b'\0' {}
+            while reader.read_u8()? != b'\0' {}
         }
 
         // Skip comment
         if flags & GZ_COMMENT != 0 {
-            while buf.read_u8()? != b'\0' {}
+            while reader.read_u8()? != b'\0' {}
         }
 
         // Skip CRC bytes
         if flags & GZ_FHCRC != 0 {
-            buf.seek(SeekFrom::Current(2))?;
+            reader.seek(SeekFrom::Current(2))?;
         }
 
         // Save length of each compressed chunk
@@ -112,7 +114,7 @@ impl<B: Read + Seek> Compressed<B> {
 
         // Save position of last compressed byte
         // Note: This might not be EOF, could be followed by CRC checksum.
-        let mut end_compressed_data = buf.seek(SeekFrom::Current(0))?;
+        let mut end_compressed_data = reader.seek(SeekFrom::Current(0))?;
 
         // After the various header bytes parsed above, the list of chunk lengths
         // can be found (slice for easier indexing)
@@ -133,11 +135,11 @@ impl<B: Read + Seek> Compressed<B> {
         ));
 
         // Read uncompressed file length
-        buf.seek(SeekFrom::Start(end_compressed_data as u64))?;
-        let ufile_length = buf.read_i32::<LittleEndian>()? as u64;
+        reader.seek(SeekFrom::Start(end_compressed_data as u64))?;
+        let ufile_length = reader.read_i32::<LittleEndian>()? as u64;
 
         Ok(Self {
-            buf,
+            reader,
             chunk_offsets,
             end_compressed_data,
             uchunk_length,
@@ -154,10 +156,10 @@ impl<B: Read + Seek> Compressed<B> {
         Ok(decoded)
     }
 
-    fn get_chunks_for(&self, start_offset: u64, length: u64) -> Result<Vec<Chunk>, DictError> {
+    fn get_chunks_for(&self, location: Location) -> Result<Vec<Chunk>, DictError> {
         let mut chunks = Vec::new();
-        let start = start_offset as usize / self.uchunk_length;
-        let end = (start_offset + length) as usize / self.uchunk_length;
+        let start = location.offset as usize / self.uchunk_length;
+        let end = (location.offset + location.size) as usize / self.uchunk_length;
         for id in start..=end {
             let offset = self.chunk_offsets[id];
             let length = match self.chunk_offsets.get(id + 1) {
@@ -173,31 +175,31 @@ impl<B: Read + Seek> Compressed<B> {
 }
 
 impl<B: Read + Seek> DictReader for Compressed<B> {
-    fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError> {
-        rassert!(length <= MAX_BYTES_FOR_BUFFER, MemoryError);
-        rassert!(start_offset + length < self.ufile_length, IoError(io::Error::new(io::ErrorKind::UnexpectedEof,
+    fn fetch_definition(&mut self, location: Location) -> Result<String, DictError> {
+        rassert!(location.size <= MAX_BYTES_FOR_BUFFER, MemoryError);
+        rassert!(location.offset + location.size < self.ufile_length, IoError(io::Error::new(io::ErrorKind::UnexpectedEof,
             "Seek beyond the end of uncompressed data was requested."
         )));
 
         let mut data = Vec::new();
-        for chunk in self.get_chunks_for(start_offset, length)? {
-            let pos = self.buf.seek(SeekFrom::Start(chunk.offset))?;
+        for chunk in self.get_chunks_for(location)? {
+            let pos = self.reader.seek(SeekFrom::Start(chunk.offset))?;
             rassert!(pos == chunk.offset, IoError(io::Error::new(io::ErrorKind::Other, format!(
                 "Attempted to seek to {} but new position is {}",
                 chunk.offset, pos
             ))));
 
             let mut definition = vec![0; chunk.length];
-            self.buf.read_exact(&mut definition)?;
+            self.reader.read_exact(&mut definition)?;
             data.push(self.inflate(definition)?);
         }
 
         // Cut definition, convert to string
-        let cut_front = start_offset as usize % self.uchunk_length;
+        let cut_front = location.offset as usize % self.uchunk_length;
 
         let data = match data.len() {
             0 => unreachable!(),
-            1 => data[0][cut_front..cut_front + length as usize].to_vec(),
+            1 => data[0][cut_front..cut_front + location.size as usize].to_vec(),
             n => {
                 let mut tmp = data[0][cut_front..].to_vec();
 
@@ -207,7 +209,7 @@ impl<B: Read + Seek> DictReader for Compressed<B> {
                 }
 
                 // Add last chunk to tmp, omitting stuff after word definition end
-                let remaining_bytes = (length as usize + cut_front) % self.uchunk_length;
+                let remaining_bytes = (location.size as usize + cut_front) % self.uchunk_length;
                 tmp.extend_from_slice(&data[n - 1][..remaining_bytes]);
                 tmp
             }

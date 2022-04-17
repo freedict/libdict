@@ -1,7 +1,9 @@
+use crate::index::Location;
+
 use super::DictError;
 
 pub trait DictReader {
-    fn fetch_definition(&mut self, start_offset: u64, length: u64) -> Result<String, DictError>;
+    fn fetch_definition(&mut self, location: Location) -> Result<String, DictError>;
 }
 
 /// Limit size of a word buffer

@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::PathBuf;
 
-use dict::index::Index;
+use dict::index::{Index, Location};
 use dict::*;
 
 fn get_asset_path() -> PathBuf {
@@ -20,13 +20,17 @@ fn load_resource(name: &str) -> File {
     File::open(res).unwrap()
 }
 
+fn loc(offset: u64, size: u64) -> Location {
+    Location { offset, size }
+}
+
 // Uncompressed dict reader
 
 #[test]
 fn correct_position() {
     let reader = Cursor::new("Ignore me: important");
     let mut dict = Uncompressed::new(reader).unwrap();
-    let def = dict.fetch_definition(11, 9).unwrap();
+    let def = dict.fetch_definition(loc(11, 9)).unwrap();
 
     assert_eq!(def, "important");
 }
@@ -35,7 +39,7 @@ fn correct_position() {
 fn seeking_to_start() {
     let reader = Cursor::new("abcdefg");
     let mut dict = Uncompressed::new(reader).unwrap();
-    let def = dict.fetch_definition(0, 3).unwrap();
+    let def = dict.fetch_definition(loc(0, 3)).unwrap();
 
     assert_eq!(def, "abc");
 }
@@ -45,7 +49,7 @@ fn seeking_to_start() {
 fn seeking_beyond_file() {
     let reader = Cursor::new("xyz is too short ;)");
     let mut dict = Uncompressed::new(reader).unwrap();
-    dict.fetch_definition(66642, 18).unwrap();
+    dict.fetch_definition(loc(66642, 18)).unwrap();
 }
 
 #[test]
@@ -53,7 +57,7 @@ fn seeking_beyond_file() {
 fn reading_beyond_file_boundary() {
     let reader = Cursor::new("blablablup");
     let mut dict = Uncompressed::new(reader).unwrap();
-    dict.fetch_definition(0, 424242).unwrap();
+    dict.fetch_definition(loc(0, 424242)).unwrap();
 }
 
 #[test]
@@ -61,7 +65,7 @@ fn reading_beyond_file_boundary() {
 fn length_too_large() {
     let reader = Cursor::new("blablablup");
     let mut dict = Uncompressed::new(reader).unwrap();
-    dict.fetch_definition(0, 424242).unwrap();
+    dict.fetch_definition(loc(0, 424242)).unwrap();
 }
 
 // Compressed dict reader
@@ -179,7 +183,7 @@ fn word_doesnt_exist() {
     let index_path = get_resource("lat-deu.index");
     let mut dict = Dict::from_file(dict_path, index_path).unwrap();
 
-    assert!(dict.lookup("testtesttest").is_err());
+    assert!(dict.lookup("testtesttest", false).is_err());
 }
 
 #[test]
@@ -187,9 +191,9 @@ fn word_does_exist() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
     let mut dict = Dict::from_file(dict_path, index_path).unwrap();
-    let word = dict.lookup("mater").unwrap();
+    let res = dict.lookup("mater", false).unwrap();
 
-    assert!(word.starts_with("mater"));
+    assert!(res[0].headword.starts_with("mater"));
 }
 
 #[test]
@@ -197,9 +201,9 @@ fn get_word_from_first_chunk() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
     let mut dict = Dict::from_file(dict_path, index_path).unwrap();
-    let word = dict.lookup("amo").unwrap();
+    let res = dict.lookup("amo", false).unwrap();
 
-    assert!(word.starts_with("amo"));
+    assert!(res[0].headword.starts_with("amo"));
 }
 
 #[test]
@@ -207,9 +211,9 @@ fn get_word_from_last_chunk() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
     let mut dict = Dict::from_file(dict_path, index_path).unwrap();
-    let word = dict.lookup("vultus").unwrap();
+    let res = dict.lookup("vultus", false).unwrap();
 
-    assert!(word.starts_with("vultus"));
+    assert!(res[0].headword.starts_with("vultus"));
 }
 
 #[test]
@@ -217,12 +221,12 @@ fn get_word_split_at_chunk_border() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
     let mut dict = Dict::from_file(dict_path, index_path).unwrap();
-    let word = dict.lookup("circumfero").unwrap();
+    let res = dict.lookup("circumfero", false).unwrap();
 
     // For the above dictionary, the chunk (or block) length of each uncompressed chunk is 58315;
     // Exactly there, the definition circumfero is split into two pieces:
-    assert!(word.starts_with("circumfero"));
-    assert!(word.ends_with("herumtreiben\n"));
+    assert!(res[0].headword.starts_with("circumfero"));
+    assert!(res[0].definition.ends_with("herumtreiben\n"));
 }
 
 #[test]
@@ -242,13 +246,13 @@ fn comment_parsing_correct() {
     newdata.extend(&data[49..]);
 
     let index_reader = BufReader::new(File::open(get_resource("lat-deu.index")).unwrap());
-    let index = Index::new(index_reader).unwrap();
+    let index = Box::new(Index::new(index_reader).unwrap());
     let data = Cursor::new(newdata);
     let reader = Box::new(Compressed::new(data).unwrap());
     let mut dict = Dict::from_existing(reader, index).unwrap();
-    let word = dict.lookup("mater").unwrap();
+    let res = dict.lookup("mater", false).unwrap();
 
-    assert!(word.starts_with("mater"));
+    assert!(res[0].headword.starts_with("mater"));
 }
 
 #[test]
@@ -270,13 +274,13 @@ fn no_filename_correct() {
     newdata.extend(&data[49..]);
 
     let index_reader = BufReader::new(File::open(get_resource("lat-deu.index")).unwrap());
-    let index = Index::new(index_reader).unwrap();
+    let index = Box::new(Index::new(index_reader).unwrap());
     let data = Cursor::new(newdata);
     let reader = Box::new(Compressed::new(data).unwrap());
     let mut dict = Dict::from_existing(reader, index).unwrap();
-    let word = dict.lookup("mater").unwrap();
+    let res = dict.lookup("mater", false).unwrap();
 
-    assert!(word.starts_with("mater"));
+    assert!(res[0].headword.starts_with("mater"));
 }
 
 #[test]
@@ -288,5 +292,5 @@ fn seek_beyond_end_of_file() {
 
     let data = Cursor::new(data);
     let mut dict = Compressed::new(data).unwrap();
-    dict.fetch_definition(9999999999u64, 888u64).unwrap();
+    dict.fetch_definition(loc(9999999999u64, 888u64)).unwrap();
 }
