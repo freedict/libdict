@@ -183,7 +183,7 @@ fn word_doesnt_exist() {
     let index_path = get_resource("lat-deu.index");
     let mut dict = Dict::from_file(dict_path, index_path).unwrap();
 
-    assert!(dict.lookup("testtesttest", false).is_err());
+    assert!(dict.lookup("testtesttest", false, false).is_err());
 }
 
 #[test]
@@ -191,7 +191,7 @@ fn word_does_exist() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
     let mut dict = Dict::from_file(dict_path, index_path).unwrap();
-    let res = dict.lookup("mater", false).unwrap();
+    let res = dict.lookup("mater", false, false).unwrap();
 
     assert!(res[0].headword.starts_with("mater"));
 }
@@ -201,7 +201,7 @@ fn get_word_from_first_chunk() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
     let mut dict = Dict::from_file(dict_path, index_path).unwrap();
-    let res = dict.lookup("amo", false).unwrap();
+    let res = dict.lookup("amo", false, false).unwrap();
 
     assert!(res[0].headword.starts_with("amo"));
 }
@@ -211,7 +211,7 @@ fn get_word_from_last_chunk() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
     let mut dict = Dict::from_file(dict_path, index_path).unwrap();
-    let res = dict.lookup("vultus", false).unwrap();
+    let res = dict.lookup("vultus", false, false).unwrap();
 
     assert!(res[0].headword.starts_with("vultus"));
 }
@@ -221,7 +221,7 @@ fn get_word_split_at_chunk_border() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
     let mut dict = Dict::from_file(dict_path, index_path).unwrap();
-    let res = dict.lookup("circumfero", false).unwrap();
+    let res = dict.lookup("circumfero", false, false).unwrap();
 
     // For the above dictionary, the chunk (or block) length of each uncompressed chunk is 58315;
     // Exactly there, the definition circumfero is split into two pieces:
@@ -250,7 +250,7 @@ fn comment_parsing_correct() {
     let data = Cursor::new(newdata);
     let reader = Box::new(Compressed::new(data).unwrap());
     let mut dict = Dict::from_existing(reader, index).unwrap();
-    let res = dict.lookup("mater", false).unwrap();
+    let res = dict.lookup("mater", false, false).unwrap();
 
     assert!(res[0].headword.starts_with("mater"));
 }
@@ -278,7 +278,7 @@ fn no_filename_correct() {
     let data = Cursor::new(newdata);
     let reader = Box::new(Compressed::new(data).unwrap());
     let mut dict = Dict::from_existing(reader, index).unwrap();
-    let res = dict.lookup("mater", false).unwrap();
+    let res = dict.lookup("mater", false, false).unwrap();
 
     assert!(res[0].headword.starts_with("mater"));
 }

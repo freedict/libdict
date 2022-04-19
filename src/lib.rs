@@ -56,6 +56,7 @@ pub struct LookupResult {
 }
 
 impl Dict {
+    /// Create a `Dict` from a pair of .dict and .index files.
     pub fn from_file<P: AsRef<Path>>(dict_path: P, index_path: P) -> Result<Self, DictError> {
         let dict_reader = BufReader::new(File::open(&dict_path)?);
         let index_reader = BufReader::new(File::open(&index_path)?);
@@ -74,17 +75,25 @@ impl Dict {
         })
     }
 
+    /// Create a `Dict` from already existing readers.
     pub fn from_existing(dict: Box<dyn DictReader>, index: Box<dyn IndexReader>) -> Result<Self, DictError> {
         Ok(Self { dict, index })
     }
 
     /// Look up a word in a dictionary.
     ///
-    /// Words are looked up in the index and then retrieved from the dict file. If no word was
-    /// found, `DictError::WordNotFound` is returned. Other errors all result from the parsing of
-    /// the underlying files.
-    pub fn lookup(&mut self, word: &str, fuzzy: bool) -> Result<Vec<LookupResult>, DictError> {
-        let entries = self.index.find(word, fuzzy)?;
+    /// # Arguments
+    ///
+    /// * `word` - Word to search for
+    /// * `fuzzy` - Enables fuzzy search (up to one letter)
+    /// * `relaxed` - Enables relaxed search mode (no need to match diacritics and other special
+    /// letters)
+    ///
+    /// # Returns
+    /// `WordNotFound` if the word wasn't found in the dictionary, parsing errors or, otherwise,
+    /// the list of words that match the search query.
+    pub fn lookup(&mut self, word: &str, fuzzy: bool, relaxed: bool) -> Result<Vec<LookupResult>, DictError> {
+        let entries = self.index.find(word, fuzzy, relaxed)?;
 
         let mut results = Vec::new();
         for entry in entries {
@@ -97,6 +106,7 @@ impl Dict {
         Ok(results)
     }
 
+    /// Get the metadata of the dictionary.
     pub fn metadata(&self) -> &Metadata {
         self.index.metadata()
     }
@@ -137,15 +147,21 @@ mod tests {
         Dict::from_file(dict, index)
     }
 
-    fn lookup_dict(dict: &mut Dict, word: &str, expected: &Vec<LookupResult>) {
-        let results = dict.lookup(word, true).unwrap();
+    fn lookup_dict_fuzzy(dict: &mut Dict, word: &str, expected: &Vec<LookupResult>) {
+        let results = dict.lookup(word, true, false).unwrap();
         assert_eq!(&results, expected);
     }
 
     fn lookup_dict_exact(dict: &mut Dict, word: &str, expected: &Vec<LookupResult>) {
-        let results = dict.lookup(word, false).unwrap();
+        let results = dict.lookup(word, false, false).unwrap();
         assert_eq!(&results, expected);
     }
+    
+    fn lookup_dict_relaxed(dict: &mut Dict, word: &str, expected: &Vec<LookupResult>) {
+        let results = dict.lookup(word, false, true).unwrap();
+        assert_eq!(&results, expected);
+    }
+
 
 
     #[test]
@@ -172,7 +188,6 @@ mod tests {
         let expected = vec![
             LookupResult { headword: "bar".into(), definition: "Bar\ntest for case-sensitivity\n".into() },
         ];
-        dbg!(&dict.metadata().case_sensitive);
 
         lookup_dict_exact(&mut dict, "bar", &expected);
         lookup_dict_exact(&mut dict, "Bar", &expected);
@@ -191,7 +206,7 @@ mod tests {
             LookupResult { headword: "bar".into(), definition: "Bar\ntest for case-sensitivity\n".into() },
         ];
 
-        lookup_dict(&mut dict, "ba", &expected);
+        lookup_dict_fuzzy(&mut dict, "ba", &expected);
     }
 
     #[test]
@@ -209,8 +224,8 @@ mod tests {
 
         lookup_dict_exact(&mut dict, "straße", &expected);
 
-        assert!(dict.lookup("bar", false).is_err());
-        assert!(dict.lookup("strasse", false).is_err());
+        assert!(dict.lookup("bar", false, false).is_err());
+        assert!(dict.lookup("strasse", false, false).is_err());
     }
 
     #[test]
@@ -220,9 +235,19 @@ mod tests {
             LookupResult { headword: "Bar".into(), definition: "Bar\ntest for case-sensitivity\n".into() },
         ];
 
-        lookup_dict(&mut dict, "Ba", &expected);
+        lookup_dict_fuzzy(&mut dict, "Ba", &expected);
 
-        assert!(dict.lookup("ba", true).is_err());
+        assert!(dict.lookup("ba", true, false).is_err());
+    }
+
+    #[test]
+    fn test_dictionary_lookup_relaxed() {
+        let mut dict = custom_dictionary("case_insensitive_dict.dict", "case_insensitive_dict.index").unwrap();
+        let expected = vec![
+            LookupResult { headword: "straße".into(), definition: "straße\ntest for non-latin case-sensitivity\n".into() },
+        ];
+
+        lookup_dict_relaxed(&mut dict, "strasse", &expected);
     }
 }
 
