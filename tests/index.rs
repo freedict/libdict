@@ -56,7 +56,7 @@ fn good_line() {
     let mut index = Index::new(reader).unwrap();
 
     assert_eq!(
-        index.find("word", false).unwrap(),
+        index.find("word", false, false).unwrap(),
         vec![Entry {
             headword: "word".into(),
             location: loc(43478075309, 40242121569),
@@ -71,7 +71,7 @@ fn two_entries_parsed() {
     let mut index = Index::new(reader).unwrap();
 
     assert_eq!(
-        index.find("word", false).unwrap(),
+        index.find("word", false, false).unwrap(),
         vec![Entry {
             headword: "word".into(),
             location: loc(43478075309, 40242121569),
@@ -79,7 +79,7 @@ fn two_entries_parsed() {
         }]
     );
     assert_eq!(
-        index.find("another", false).unwrap(),
+        index.find("another", false, false).unwrap(),
         vec![Entry {
             headword: "another".into(),
             location: loc(109851, 28),
@@ -104,12 +104,12 @@ fn test_index_find() {
     let mut index = Index::new(index).unwrap();
 
     // Nonexistant word
-    assert!(index.find("apples", false).is_err());
+    assert!(index.find("apples", false, false).is_err());
 
     dbg!(&index.entries);
 
     // Without fuzzy
-    let results = index.find("bar", false).unwrap();
+    let results = index.find("bar", false, false).unwrap();
     let expected = vec![
         Entry{
             headword: "bar".into(),
@@ -120,7 +120,7 @@ fn test_index_find() {
     assert_eq!(results, expected);
 
     // With fuzzy
-    let results = index.find("bas", true).unwrap();
+    let results = index.find("bas", true, false).unwrap();
     let expected = vec![
         Entry{
             headword: "bar".into(),

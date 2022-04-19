@@ -10,6 +10,7 @@ pub use metadata::Metadata;
 use crate::{DictError, DictReader};
 use std::{io::{BufRead, Seek, SeekFrom}, ops::Range};
 use IndexError::*;
+use unidecode::unidecode;
 
 pub struct Index<R: BufRead + Seek> {
     pub reader: R,
@@ -18,15 +19,15 @@ pub struct Index<R: BufRead + Seek> {
     pub loaded: bool,
 }
 
-/// Location of the headword within the dict
+/// Location of the headword within the dict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Location {
     pub offset: u64,
     pub size: u64,
 }
 
+/// An index entry containing the headword, location and, optionally, the original headword.
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// An index entry containing the headword, location and, optionally, the original headword
 pub struct Entry {
     pub headword: String,
     pub location: Location,
@@ -38,6 +39,8 @@ impl<R: BufRead + Seek> Index<R> {
     pub fn new_full(mut reader: R, dict: &mut Box<dyn DictReader>) -> Result<Self, DictError> {
         let mut metadata = Metadata::default();
         let metadata_index = parsing::parse_metadata(&mut reader)?;
+
+        // Metadata is broken (contains junk chars) if we don't remap it
         let remap = |def: String| {
             let start = def.find('\n').filter(|pos| *pos < def.len() - 1).unwrap_or(0);
             def[start..].trim().to_string()
@@ -96,7 +99,9 @@ impl<R: BufRead + Seek> Index<R> {
         self.reader.seek(SeekFrom::Start(0))?;
 
         let mut entries = parsing::parse(&mut self.reader)?;
-        normalize(&mut entries, &self.metadata);
+        if self.metadata.should_normalize {
+            normalize(&mut entries, &self.metadata);
+        }
         self.entries = entries;
 
         Ok(())
@@ -104,7 +109,7 @@ impl<R: BufRead + Seek> Index<R> {
 }
 
 impl<R: BufRead + Seek> IndexReader for Index<R> {
-    fn find(&mut self, headword: &str, fuzzy: bool) -> Result<Vec<Entry>, IndexError> {
+    fn find(&mut self, headword: &str, fuzzy: bool, relaxed: bool) -> Result<Vec<Entry>, IndexError> {
         if !self.loaded {
             self.load_entries()?;
             self.loaded = true;
@@ -113,36 +118,58 @@ impl<R: BufRead + Seek> IndexReader for Index<R> {
         // Normalize query according to the metadata
         let mut headword = headword.to_string();
         normalize_headword(&mut headword, &self.metadata);
-        let headword: &str = &headword;
+        let headword: &str = headword.trim();
 
         if fuzzy {
             let results: Vec<Entry> = self.entries
                 .iter()
-                .filter(|entry| levenshtein(headword, &entry.headword) <= 1)
+                .filter(|entry| {
+                    if relaxed {
+                        let transliterated = unidecode(&entry.headword);
+                        levenshtein(headword, transliterated.trim()) <= 1
+                    } else {
+                        levenshtein(headword, &entry.headword) <= 1
+                    }
+                })
                 .cloned()
                 .collect();
 
             if results.is_empty() { return Err(WordNotFound(headword.into())) }
 
             Ok(results)
-        } else if let Ok(pivot) = self.entries.binary_search_by_key(&headword, |entry| &entry.headword) {
-            let mut results = Vec::new();
-            
-            // Search for all matching headwords left of the word (alphabetically)
-            for i in 0..pivot {
-                if self.entries[i].headword != headword { break }
-                results.push(self.entries[i].clone());
-            }
-
-            // Search for all matching headwords right of the word (alphabetically)
-            for i in pivot..self.entries.len() {
-                if self.entries[i].headword != headword { break }
-                results.push(self.entries[i].clone());
-            }
-
-            Ok(results)
         } else {
-            Err(WordNotFound(headword.into()))
+            if relaxed {
+                let results: Vec<Entry> = self.entries.iter()
+                    .filter(|entry| unidecode(&entry.headword) == headword)
+                    .cloned()
+                    .collect();
+
+                if results.is_empty() { return Err(WordNotFound(headword.into())) }
+
+                Ok(results)
+            } else if let Ok(pivot) = self.entries.binary_search_by_key(&headword, |entry| &entry.headword) {
+                let mut results = Vec::new();
+            
+                // Search for all matching headwords left of the word (alphabetically)
+                for i in 0..pivot {
+                    if relaxed && unidecode(&self.entries[i].headword) != headword { break }
+                    else if self.entries[i].headword != headword { break }
+                    results.push(self.entries[i].clone());
+                }
+
+                results.push(self.entries[pivot].clone());
+
+                // Search for all matching headwords right of the word (alphabetically)
+                for i in pivot + 1..self.entries.len() {
+                    if relaxed && unidecode(&self.entries[i].headword) != headword { break }
+                    else if self.entries[i].headword != headword { break }
+                    results.push(self.entries[i].clone());
+                }
+
+                Ok(results)
+            } else {
+                Err(WordNotFound(headword.into()))
+            }
         }
     }
 

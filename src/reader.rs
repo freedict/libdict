@@ -3,6 +3,12 @@ use crate::index::Location;
 use super::DictError;
 
 pub trait DictReader {
+    /// Reads the bytes from `[offset, offset + size>` and returns them as a string. Alternatively,
+    /// returns a `DictError`.
+    ///
+    /// # Arguments
+    ///
+    /// * `location` - The location in the reader to read the definition from.
     fn fetch_definition(&mut self, location: Location) -> Result<String, DictError>;
 }
 
