@@ -97,7 +97,9 @@ impl<R: BufRead + Seek> Index<R> {
         self.reader.seek(SeekFrom::Start(0))?;
 
         let mut entries = parsing::parse(&mut self.reader)?;
-        normalize(&mut entries, &self.metadata);
+        if self.metadata.should_normalize {
+            normalize(&mut entries, &self.metadata);
+        }
         self.entries = entries;
 
         Ok(())
