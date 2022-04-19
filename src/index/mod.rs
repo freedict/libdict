@@ -19,15 +19,15 @@ pub struct Index<R: BufRead + Seek> {
     pub loaded: bool,
 }
 
-/// Location of the headword within the dict
+/// Location of the headword within the dict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Location {
     pub offset: u64,
     pub size: u64,
 }
 
+/// An index entry containing the headword, location and, optionally, the original headword.
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// An index entry containing the headword, location and, optionally, the original headword
 pub struct Entry {
     pub headword: String,
     pub location: Location,
@@ -39,6 +39,8 @@ impl<R: BufRead + Seek> Index<R> {
     pub fn new_full(mut reader: R, dict: &mut Box<dyn DictReader>) -> Result<Self, DictError> {
         let mut metadata = Metadata::default();
         let metadata_index = parsing::parse_metadata(&mut reader)?;
+
+        // Metadata is broken (contains junk chars) if we don't remap it
         let remap = |def: String| {
             let start = def.find('\n').filter(|pos| *pos < def.len() - 1).unwrap_or(0);
             def[start..].trim().to_string()
