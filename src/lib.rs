@@ -16,7 +16,7 @@
 //!     let mut latdeu = Dict::from_file(dict_file, index_file).unwrap();
 //!
 //!     // Prints out the results of the lookup
-//!     println!("{:?}", latdeu.lookup("ferrugo", false).unwrap());
+//!     println!("{:?}", latdeu.lookup("ferrugo", false, false).unwrap());
 //! }
 //! ```
 
@@ -98,7 +98,7 @@ impl Dict {
         let mut results = Vec::new();
         for entry in entries {
             results.push(LookupResult {
-                headword: entry.headword,
+                headword: entry.original.unwrap_or(entry.headword),
                 definition: self.dict.fetch_definition(entry.location)?,
             });
         }
