@@ -137,35 +137,39 @@ impl<R: BufRead + Seek> IndexReader for Index<R> {
             if results.is_empty() { return Err(WordNotFound(headword.into())) }
 
             Ok(results)
-        } else if let Ok(pivot) = self.entries.binary_search_by(|entry| {
-                if relaxed {
-                    let transliterated = unidecode(&entry.headword);
-                    transliterated.trim().cmp(headword)
-                } else {
-                    entry.headword.as_str().cmp(headword)
-                }
-            }) {
-            let mut results = Vec::new();
-            
-            // Search for all matching headwords left of the word (alphabetically)
-            for i in 0..pivot {
-                if relaxed && unidecode(&self.entries[i].headword) != headword { break }
-                else if self.entries[i].headword != headword { break }
-                results.push(self.entries[i].clone());
-            }
-
-            results.push(self.entries[pivot].clone());
-
-            // Search for all matching headwords right of the word (alphabetically)
-            for i in pivot + 1..self.entries.len() {
-                if relaxed && unidecode(&self.entries[i].headword) != headword { break }
-                else if self.entries[i].headword != headword { break }
-                results.push(self.entries[i].clone());
-            }
-
-            Ok(results)
         } else {
-            Err(WordNotFound(headword.into()))
+            if relaxed {
+                let results: Vec<Entry> = self.entries.iter()
+                    .filter(|entry| unidecode(&entry.headword) == headword)
+                    .cloned()
+                    .collect();
+
+                if results.is_empty() { return Err(WordNotFound(headword.into())) }
+
+                Ok(results)
+            } else if let Ok(pivot) = self.entries.binary_search_by_key(&headword, |entry| &entry.headword) {
+                let mut results = Vec::new();
+            
+                // Search for all matching headwords left of the word (alphabetically)
+                for i in 0..pivot {
+                    if relaxed && unidecode(&self.entries[i].headword) != headword { break }
+                    else if self.entries[i].headword != headword { break }
+                    results.push(self.entries[i].clone());
+                }
+
+                results.push(self.entries[pivot].clone());
+
+                // Search for all matching headwords right of the word (alphabetically)
+                for i in pivot + 1..self.entries.len() {
+                    if relaxed && unidecode(&self.entries[i].headword) != headword { break }
+                    else if self.entries[i].headword != headword { break }
+                    results.push(self.entries[i].clone());
+                }
+
+                Ok(results)
+            } else {
+                Err(WordNotFound(headword.into()))
+            }
         }
     }
 
