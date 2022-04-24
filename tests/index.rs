@@ -1,4 +1,4 @@
-use dict::{index::{Entry, Index, IndexReader, Location}, IndexError, LookupResult};
+use dict::index::{Entry, Index, IndexReader, Location};
 use std::{io::{Cursor, BufReader}, fs::File, path::PathBuf};
 
 fn get_asset_path() -> PathBuf {
@@ -106,7 +106,7 @@ fn test_index_find() {
     // Nonexistant word
     assert!(index.find("apples", false, false).is_err());
 
-    dbg!(&index.entries);
+    dbg!(&index.entries());
 
     // Without fuzzy
     let results = index.find("bar", false, false).unwrap();

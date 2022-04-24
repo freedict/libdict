@@ -8,12 +8,12 @@
 //! The usage is straight forward:
 //!
 //! ```rust,no_run
-//! use dict::Dict;
+//! use dict::Dictionary;
 //!
 //! fn main() {
 //!     let index_file = "/usr/share/dictd/freedict-lat-deu.index";
 //!     let dict_file = "/usr/share/dictd/freedict-lat-deu.dict.dz";
-//!     let mut latdeu = Dict::from_file(dict_file, index_file).unwrap();
+//!     let mut latdeu = Dictionary::from_file(dict_file, index_file).unwrap();
 //!
 //!     // Prints out the results of the lookup
 //!     println!("{:?}", latdeu.lookup("ferrugo", false, false).unwrap());
@@ -27,7 +27,7 @@ mod reader;
 mod uncompressed;
 pub use compressed::Compressed;
 pub use error::DictError;
-use index::{IndexReader, Metadata};
+use index::{IndexReader, MetaData};
 pub use reader::{DictReader, MAX_BYTES_FOR_BUFFER};
 pub use uncompressed::Uncompressed;
 pub use index::{Index, IndexError};
@@ -37,6 +37,13 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct LookupResult {
+    pub headword: String,
+    pub definition: String,
+}
+
+
 /// A dictionary wrapper.
 ///
 /// A dictionary is made up of a `*.dict` or `*.dict.dz` file with the actual content and a
@@ -44,19 +51,13 @@ use std::path::Path;
 /// information. It provides a convenience function to look up headwords directly, without caring
 /// about the details of the index and the underlying dict format.
 /// For an example, please see the [crate documentation](index.html).
-pub struct Dict {
+pub struct Dictionary {
     pub(crate) dict: Box<dyn DictReader>,
     pub(crate) index: Box<dyn IndexReader>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct LookupResult {
-    pub headword: String,
-    pub definition: String,
-}
-
-impl Dict {
-    /// Create a `Dict` from a pair of .dict and .index files.
+impl Dictionary {
+    /// Create a `Dictionary` from a pair of .dict and .index files.
     pub fn from_file<P: AsRef<Path>>(dict_path: P, index_path: P) -> Result<Self, DictError> {
         let dict_reader = BufReader::new(File::open(&dict_path)?);
         let index_reader = BufReader::new(File::open(&index_path)?);
@@ -75,8 +76,8 @@ impl Dict {
         })
     }
 
-    /// Create a `Dict` from already existing readers.
-    pub fn from_existing(dict: Box<dyn DictReader>, index: Box<dyn IndexReader>) -> Result<Self, DictError> {
+    /// Create a `Dictionary` from already existing readers.
+    pub fn from_reader(dict: Box<dyn DictReader>, index: Box<dyn IndexReader>) -> Result<Self, DictError> {
         Ok(Self { dict, index })
     }
 
@@ -84,10 +85,10 @@ impl Dict {
     ///
     /// # Arguments
     ///
-    /// * `word` - Word to search for
-    /// * `fuzzy` - Enables fuzzy search (up to one letter)
-    /// * `relaxed` - Enables relaxed search mode (no need to match diacritics and other special
-    /// letters)
+    /// * `word` - word to search for
+    /// * `fuzzy` - enables fuzzy search (up to one letter)
+    /// * `relaxed` - enables relaxed search mode (no need to match diacritics and other special
+    ///     letters)
     ///
     /// # Returns
     /// `WordNotFound` if the word wasn't found in the dictionary, parsing errors or, otherwise,
@@ -107,7 +108,7 @@ impl Dict {
     }
 
     /// Get the metadata of the dictionary.
-    pub fn metadata(&self) -> &Metadata {
+    pub fn metadata(&self) -> &MetaData {
         self.index.metadata()
     }
 }
@@ -133,31 +134,31 @@ mod tests {
         File::open(res).unwrap()
     }
 
-    fn example_dictionary() -> Result<Dict, DictError> {
+    fn example_dictionary() -> Result<Dictionary, DictError> {
         let dict = get_asset_path().join("lat-deu.dict.dz");
         let index = get_asset_path().join("lat-deu.index");
 
-        Dict::from_file(dict, index)
+        Dictionary::from_file(dict, index)
     }
 
-    fn custom_dictionary(dict_path: &str, index_path: &str) -> Result<Dict, DictError> {
+    fn custom_dictionary(dict_path: &str, index_path: &str) -> Result<Dictionary, DictError> {
         let dict = get_asset_path().join(dict_path);
         let index = get_asset_path().join(index_path);
 
-        Dict::from_file(dict, index)
+        Dictionary::from_file(dict, index)
     }
 
-    fn lookup_dict_fuzzy(dict: &mut Dict, word: &str, expected: &Vec<LookupResult>) {
+    fn lookup_dict_fuzzy(dict: &mut Dictionary, word: &str, expected: &Vec<LookupResult>) {
         let results = dict.lookup(word, true, false).unwrap();
         assert_eq!(&results, expected);
     }
 
-    fn lookup_dict_exact(dict: &mut Dict, word: &str, expected: &Vec<LookupResult>) {
+    fn lookup_dict_exact(dict: &mut Dictionary, word: &str, expected: &Vec<LookupResult>) {
         let results = dict.lookup(word, false, false).unwrap();
         assert_eq!(&results, expected);
     }
     
-    fn lookup_dict_relaxed(dict: &mut Dict, word: &str, expected: &Vec<LookupResult>) {
+    fn lookup_dict_relaxed(dict: &mut Dictionary, word: &str, expected: &Vec<LookupResult>) {
         let results = dict.lookup(word, false, true).unwrap();
         assert_eq!(&results, expected);
     }

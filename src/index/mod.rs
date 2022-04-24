@@ -5,19 +5,12 @@ mod metadata;
 use levenshtein::levenshtein;
 pub use reader::IndexReader;
 pub use error::IndexError;
-pub use metadata::Metadata;
+pub use metadata::MetaData;
 
 use crate::{DictError, DictReader};
 use std::{io::{BufRead, Seek, SeekFrom}, ops::Range};
 use IndexError::*;
 use unidecode::unidecode;
-
-pub struct Index<R: BufRead + Seek> {
-    pub reader: R,
-    pub entries: Vec<Entry>,
-    pub metadata: Metadata,
-    pub loaded: bool,
-}
 
 /// Location of the headword within the dict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,6 +18,20 @@ pub struct Location {
     pub offset: u64,
     pub size: u64,
 }
+
+impl Location {
+    pub fn new(offset: u64, size: u64) -> Self {
+        Self {
+            offset,
+            size,
+        }
+    }
+
+    pub fn as_range(&self) -> Range<u64> {
+        self.offset..self.offset + self.size
+    }
+}
+
 
 /// An index entry containing the headword, location and, optionally, the original headword.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,13 +41,22 @@ pub struct Entry {
     pub original: Option<String>,
 }
 
+/// The loaded headword index of a dictionary.
+pub struct Index<R: BufRead + Seek> {
+    reader: R,
+    entries: Vec<Entry>,
+    metadata: MetaData,
+    loaded: bool,
+}
+
+
 impl<R: BufRead + Seek> Index<R> {
     /// Creates a new Index and reads its full metadata.
     pub fn new_full(mut reader: R, dict: &mut Box<dyn DictReader>) -> Result<Self, DictError> {
-        let mut metadata = Metadata::default();
+        let mut metadata = MetaData::default();
         let metadata_index = parsing::parse_metadata(&mut reader)?;
 
-        // Metadata is broken (contains junk chars) if we don't remap it
+        // MetaData is broken (contains junk chars) if we don't remap it
         let remap = |def: String| {
             let start = def.find('\n').filter(|pos| *pos < def.len() - 1).unwrap_or(0);
             def[start..].trim().to_string()
@@ -76,7 +92,7 @@ impl<R: BufRead + Seek> Index<R> {
 
     /// Creates a new Index and reads only its basic metadata.
     pub fn new(mut reader: R) -> Result<Self, IndexError> {
-        let mut metadata = Metadata::default();
+        let mut metadata = MetaData::default();
         let metadata_index = parsing::parse_metadata(&mut reader)?;
 
         // Pass all the other options
@@ -90,6 +106,16 @@ impl<R: BufRead + Seek> Index<R> {
             metadata,
             loaded: false,
         })
+    }
+
+    /// Get all dictionary index entries.
+    pub fn entries(&self) -> &[Entry] {
+        &self.entries
+    }
+
+    /// Get the meta data that affects the index search.
+    pub fn metadata(&self) -> &MetaData {
+        &self.metadata
     }
 }
 
@@ -116,8 +142,7 @@ impl<R: BufRead + Seek> IndexReader for Index<R> {
         }
 
         // Normalize query according to the metadata
-        let mut headword = headword.to_string();
-        normalize_headword(&mut headword, &self.metadata);
+        let headword = normalize_headword(&headword, &self.metadata);
         let headword: &str = headword.trim();
 
         if fuzzy {
@@ -173,51 +198,39 @@ impl<R: BufRead + Seek> IndexReader for Index<R> {
         }
     }
 
-    fn metadata(&self) -> &Metadata {
+    fn metadata(&self) -> &MetaData {
         &self.metadata
     }
 }
 
-fn normalize(entries: &mut [Entry], metadata: &Metadata) {
+/// Normalise headwords of all entries.
+fn normalize(entries: &mut [Entry], metadata: &MetaData) {
     for entry in entries.iter_mut() {
-        let old_headword = entry.headword.clone();
+        let headword = normalize_headword(&entry.headword, metadata);
 
-        normalize_headword(&mut entry.headword, metadata);
-
-        let original = if old_headword != entry.headword {
-            Some(old_headword)
-        } else {
-            None
+        entry.original = match entry.headword != headword {
+            true => Some( entry.headword.clone()),
+            false => None,
         };
 
-        entry.original = original;
+        entry.headword = headword;
     }
 }
 
-fn normalize_headword(headword: &mut String, metadata: &Metadata) {
+/// Normalize given term by removing non-alphanumeric characters and removing upper case.
+fn normalize_headword(headword: &str, metadata: &MetaData) -> String {
+    let mut headword = headword.to_string();
     // Remove all non-alphanumeric and whitespace chars
     if !metadata.all_chars {
-        *headword = headword.chars()
+        headword = headword.chars()
             .filter(|c| c.is_alphanumeric() || c.is_whitespace())
             .collect();
     }
 
     // Convert to lowercase if not case-sensitive
     if !metadata.case_sensitive {
-        *headword = headword.to_lowercase();
+        headword = headword.to_lowercase();
     }
-}
-
-impl Location {
-    pub fn new(offset: u64, size: u64) -> Self {
-        Self {
-            offset,
-            size,
-        }
-    }
-
-    pub fn as_range(&self) -> Range<u64> {
-        self.offset..self.offset + self.size
-    }
+    headword
 }
 

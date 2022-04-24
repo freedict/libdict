@@ -1,4 +1,4 @@
-use super::{IndexError, Entry, Metadata};
+use super::{IndexError, Entry, MetaData};
 
 /// Generic index reader trait
 ///
@@ -25,5 +25,5 @@ pub trait IndexReader {
     fn find(&mut self, headword: &str, fuzzy: bool, relaxed: bool) -> Result<Vec<Entry>, IndexError>;
 
     /// Gets the dictionary's metadata.
-    fn metadata(&self) -> &Metadata;
+    fn metadata(&self) -> &MetaData;
 }

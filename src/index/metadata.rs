@@ -4,7 +4,7 @@ use super::Location;
 ///
 /// These entries should appear close to the beginning of the index file.
 #[derive(Debug, Default)]
-pub struct Metadata {
+pub struct MetaData {
     pub info: Option<String>,
     pub short_name: Option<String>,
     pub url: Option<String>,

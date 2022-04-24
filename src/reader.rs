@@ -2,6 +2,7 @@ use crate::index::Location;
 
 use super::DictError;
 
+/// Fetch a 
 pub trait DictReader {
     /// Reads the bytes from `[offset, offset + size>` and returns them as a string. Alternatively,
     /// returns a `DictError`.

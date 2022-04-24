@@ -181,7 +181,7 @@ fn mismatched_chunk_count_and_xlen() {
 fn word_doesnt_exist() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
-    let mut dict = Dict::from_file(dict_path, index_path).unwrap();
+    let mut dict = Dictionary::from_file(dict_path, index_path).unwrap();
 
     assert!(dict.lookup("testtesttest", false, false).is_err());
 }
@@ -190,7 +190,7 @@ fn word_doesnt_exist() {
 fn word_does_exist() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
-    let mut dict = Dict::from_file(dict_path, index_path).unwrap();
+    let mut dict = Dictionary::from_file(dict_path, index_path).unwrap();
     let res = dict.lookup("mater", false, false).unwrap();
 
     assert!(res[0].headword.starts_with("mater"));
@@ -200,7 +200,7 @@ fn word_does_exist() {
 fn get_word_from_first_chunk() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
-    let mut dict = Dict::from_file(dict_path, index_path).unwrap();
+    let mut dict = Dictionary::from_file(dict_path, index_path).unwrap();
     let res = dict.lookup("amo", false, false).unwrap();
 
     assert!(res[0].headword.starts_with("amo"));
@@ -210,7 +210,7 @@ fn get_word_from_first_chunk() {
 fn get_word_from_last_chunk() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
-    let mut dict = Dict::from_file(dict_path, index_path).unwrap();
+    let mut dict = Dictionary::from_file(dict_path, index_path).unwrap();
     let res = dict.lookup("vultus", false, false).unwrap();
 
     assert!(res[0].headword.starts_with("vultus"));
@@ -220,7 +220,7 @@ fn get_word_from_last_chunk() {
 fn get_word_split_at_chunk_border() {
     let dict_path = get_resource("lat-deu.dict.dz");
     let index_path = get_resource("lat-deu.index");
-    let mut dict = Dict::from_file(dict_path, index_path).unwrap();
+    let mut dict = Dictionary::from_file(dict_path, index_path).unwrap();
     let res = dict.lookup("circumfero", false, false).unwrap();
 
     // For the above dictionary, the chunk (or block) length of each uncompressed chunk is 58315;
@@ -249,7 +249,7 @@ fn comment_parsing_correct() {
     let index = Box::new(Index::new(index_reader).unwrap());
     let data = Cursor::new(newdata);
     let reader = Box::new(Compressed::new(data).unwrap());
-    let mut dict = Dict::from_existing(reader, index).unwrap();
+    let mut dict = Dictionary::from_reader(reader, index).unwrap();
     let res = dict.lookup("mater", false, false).unwrap();
 
     assert!(res[0].headword.starts_with("mater"));
@@ -277,7 +277,7 @@ fn no_filename_correct() {
     let index = Box::new(Index::new(index_reader).unwrap());
     let data = Cursor::new(newdata);
     let reader = Box::new(Compressed::new(data).unwrap());
-    let mut dict = Dict::from_existing(reader, index).unwrap();
+    let mut dict = Dictionary::from_reader(reader, index).unwrap();
     let res = dict.lookup("mater", false, false).unwrap();
 
     assert!(res[0].headword.starts_with("mater"));
